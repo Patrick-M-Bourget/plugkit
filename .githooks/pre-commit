@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Blocks a commit whose cited docs are missing, or whose build or tests fail (.githooks/gate.sh).
+# A commit of Markdown alone runs the doc check only.
+# Install with scripts/install-hooks.sh. It builds and tests the working tree, so it first requires
+# the build's sources there to be exactly what is staged.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+source .githooks/build-inputs.sh
+
+scripts/check.sh docs
+if ! git diff --cached --name-only | grep -qv '\.md$'; then
+    exit 0
+fi
+
+# Unstaged or untracked changes in what the build reads would be tested here but left out of the
+# commit, which could then fail to build on its own.
+unstaged=$(git status --porcelain=v1 --untracked-files=all -- "${build_inputs[@]}" |
+    grep -v '^. ' || true)
+if [ -n "$unstaged" ]; then
+    echo "pre-commit: these differ from what is staged; stage them, or set them aside with a WIP commit:" >&2
+    printf '%s\n' "$unstaged" >&2
+    exit 1
+fi
+
+exec .githooks/gate.sh pre-commit
