@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copied from eq1's scripts/pr-images.sh (eq1 at dbb1127); listed in eq1#231.
 # Shows images on a PR, which gh can't upload: commits them to the orphan branch pr-assets, under
 # pr-<number>/, without checking it out, pushes it, and posts a comment embedding them.
 #

@@ -3,7 +3,8 @@
 # frequency response grids ([response]), which are left to CI. Its output goes to a log: only the
 # summary on success, all of it on failure. A pass records the tree it tested (the staged one, which the
 # pre-commit hook makes the working tree's), so pre-push can skip a tree that already passed.
-# Usage: .githooks/gate.sh <hook name>
+# Usage: .githooks/gate.sh <hook name>, at the plugin repository's root
+# Copied from eq1's .githooks/gate.sh (eq1 at dbb1127); listed in eq1#231.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -16,7 +17,7 @@ fi
 log="$BUILD_DIR/$hook.log"
 
 # At most GATE_SLOTS (3) gates build at once across every worktree: past that, an 8-core Mac slows each one
-# several times over and the editor tests' timing flakes (docs/agents/builder.md, "Running several builders").
+# several times over and the editor tests' timing flakes (the plugin's builder doc, "Running several builders").
 # A slot is a directory in the shared git dir holding its gate's PID; a slot whose gate died is reclaimed.
 slots="$(git rev-parse --path-format=absolute --git-common-dir)/gate-slots"
 mkdir -p "$slots"

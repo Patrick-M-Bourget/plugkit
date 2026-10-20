@@ -6,6 +6,9 @@
 # the directory it runs in: its own git -C, else the last cd before it, else the session's. A command
 # that only quotes "git checkout" in a string is judged as if it ran it: rare, and the message says why.
 # Tests: .claude/hooks/one-branch-per-worktree.test.sh
+# A plugin's .claude/settings.json runs it from plugkit's checkout as a PreToolUse hook on Bash.
+# Copied from eq1's .claude/hooks/one-branch-per-worktree.sh (eq1 at dbb1127), its message naming the repository it
+# blocks in; listed in eq1#231.
 set -uo pipefail
 
 input=$(cat)
@@ -55,12 +58,12 @@ while IFS= read -r part; do
     fi
     here=$dir
     [[ "$part" =~ git[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]] && here=$(resolve "$dir" "${BASH_REMATCH[1]}")
-    main_checkout "$here" && blocked=1
+    main_checkout "$here" && { blocked=1; blocked_in=$here; }
 done < <(sed -E 's/(&&|\|\||;|\|)/\n/g' <<< "$command")
 
 if [ "$blocked" = 1 ]; then
     echo "BLOCKED: the main checkout stays on main. Work on a branch in its own worktree:" \
-        "git worktree add ../eq1-<ticket> -b <branch> origin/main (it gets its own build/)." \
+        "git worktree add ../$(basename "$(git -C "$blocked_in" rev-parse --show-toplevel)")-<ticket> -b <branch> origin/main (it gets its own build/)." \
         "A command that only quotes git checkout or git switch (a heredoc writing a file, say) is judged as if it ran it;" \
         "write that file with the Write tool instead." >&2
     exit 2

@@ -10,7 +10,8 @@
 # read through the fake git's grep (fetches are logged to fetch.log, and fail if $FAKE/no-fetch).
 # gh pr merge is logged to merge.log, and refused when --match-head-commit isn't the PR's head. Branch deletions,
 # through gh api and a fake git (local branch "topic" exists unless $FAKE/no-local, and is checked out in a
-# worktree if $FAKE/checked-out), are logged to deleted.log.
+# worktree if $FAKE/checked-out), are logged to deleted.log. It runs in the scratch repo, as at a plugin's root.
+# Copied from eq1's scripts/merge-on-green.test.sh (eq1 at dbb1127); listed in eq1#231.
 set -uo pipefail
 script=$(cd "$(dirname "$0")" && pwd)/merge-on-green.sh
 tmp=$(mktemp -d)
@@ -92,6 +93,9 @@ a=$(git -C "$REPO" rev-parse HEAD)
 printf '// Holds until #12 lands.\n' > "$REPO/engine/a.cpp"
 git -C "$REPO" -c user.name=t -c user.email=t@t commit -qam cites
 c=$(git -C "$REPO" rev-parse HEAD)
+# The script runs at the plugin repository's root, whose plugkit.conf names the directories citations are read in.
+echo 'SOURCE_DIRS="engine plugin tools tests"' > "$REPO/plugkit.conf"
+cd "$REPO" || exit 1
 b=bbbbbbb2222222222222222222222222222222222
 green='[{"name":"Windows x64","bucket":"pass"},{"name":"macOS Universal","bucket":"pass"}]'
 failures=0

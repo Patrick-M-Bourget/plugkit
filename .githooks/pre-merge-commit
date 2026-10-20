@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # A merge that commits without stopping (no conflicts, no --no-commit) runs this hook instead of
 # pre-commit, so it gets the same gate: the merged tree must build and pass the tests.
+# Copied from eq1's .githooks/pre-merge-commit (eq1 at dbb1127); listed in eq1#231.
 set -euo pipefail
-exec "$(git rev-parse --show-toplevel)/.githooks/pre-commit" "$@"
+exec "$(cd "$(dirname "$0")" && pwd)/pre-commit" "$@"

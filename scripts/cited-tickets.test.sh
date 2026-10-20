@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests scripts/cited-tickets.sh, the rule scripts/check.sh docs and merge-on-green.sh share for which code
-# cites a ticket, in a scratch repo.
+# cites a ticket, in a scratch plugin repo whose plugkit.conf names its SOURCE_DIRS.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# Copied from eq1's scripts/cited-tickets.test.sh (eq1 at dbb1127); listed in eq1#231.
 set -uo pipefail
 script=$(cd "$(dirname "$0")" && pwd)/cited-tickets.sh
 tmp=$(mktemp -d)
@@ -12,6 +13,7 @@ git init -q .
 git config user.email test@example.com
 git config user.name test
 mkdir engine plugin tools tests docs
+echo 'SOURCE_DIRS="engine plugin tools tests"' > plugkit.conf
 cat > engine/a.cpp << 'X'
 // Until #12 lands, this holds.
 // See #123 and #9.

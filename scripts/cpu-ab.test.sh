@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copied from eq1's scripts/cpu-ab.test.sh (eq1 at dbb1127); listed in eq1#231.
 # Tests the CPU A/B's verdicts (scripts/cpu-ab.awk, which scripts/check.sh cpu <ref> runs) on made-up loads:
 # a scene is "slower" or "faster" only when its median after/before ratio is at least the threshold from 1.0
 # and enough rounds agree in direction; "no clear change" otherwise.

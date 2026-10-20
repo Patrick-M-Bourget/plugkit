@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copied from eq1's scripts/ci-timings.sh (eq1 at dbb1127); listed in eq1#231.
 # How long each CI job and step took, for timing CI changes before and after:
 #
 #   scripts/ci-timings.sh <run-id> [attempt]     attempt defaults to the latest

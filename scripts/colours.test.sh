@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Tests the colours check (scripts/check.sh colours) against scratch files in a throwaway git repo holding a copy of
-# check.sh: each hard-coded colour spelling under plugin/ must fail with its file and line, and the same spelling in
-# plugin/staple/, or a colour that isn't a literal, must pass.
+# Tests the colours check (scripts/check.sh colours) against scratch files in a throwaway plugin repo whose
+# plugkit.conf sets PLUGIN_DIR=plugin and TOKENS_DIR=plugin/staple/, the check run from inside it: each hard-coded
+# colour spelling under plugin/ must fail with its file and line, and the same spelling in plugin/staple/, or a colour
+# that isn't a literal, must pass.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# Copied from eq1's scripts/colours.test.sh (eq1 at dbb1127), adapted to run plugkit's check.sh in the plugin repo;
+# listed in eq1#231.
 set -uo pipefail
 check=$(cd "$(dirname "$0")" && pwd)/check.sh
 tmp=$(mktemp -d)
@@ -13,12 +16,12 @@ failures=0
 run_check() {
     local path=$1 line=$2 repo
     repo=$(mktemp -d "$tmp/repo.XXXXXX")
-    mkdir -p "$repo/scripts" "$repo/$(dirname "plugin/$path")"
-    cp "$check" "$repo/scripts/check.sh"
+    mkdir -p "$repo/$(dirname "plugin/$path")"
+    printf 'PLUGIN_NAME=scratch\nPLUGIN_DIR=plugin\nTOKENS_DIR=plugin/staple/\n' > "$repo/plugkit.conf"
     printf '// scratch\n%s\n' "$line" > "$repo/plugin/$path"
     git -C "$repo" init -q
     git -C "$repo" add -A
-    "$repo/scripts/check.sh" colours 2>&1
+    (cd "$repo" && "$check" colours 2>&1)
 }
 
 fails() {

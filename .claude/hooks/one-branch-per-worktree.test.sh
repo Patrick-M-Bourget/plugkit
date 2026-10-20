@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests one-branch-per-worktree.sh against a throwaway repository with one linked worktree.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# Copied from eq1's .claude/hooks/one-branch-per-worktree.test.sh (eq1 at dbb1127); listed in eq1#231.
 set -uo pipefail
 # Inside a git hook, GIT_DIR and GIT_INDEX_FILE point at the repository being committed to; left set,
 # the throwaway repository's git init and commit would land there.
@@ -55,6 +56,7 @@ expect allow "$main" "cd $linked && git checkout -q -b topic origin/main"
 expect allow "$main" "cd $linked && git checkout -q --detach origin/main; cd $main && git pull -q --ff-only"
 expect allow "$main" "git -C $linked switch -q --detach origin/main && git -C $main branch -D topic"
 expect allow "$main" "cd ../linked && git switch topic"
+says "git worktree add ../repo-<ticket>" "$main" "git switch topic"
 says "Write tool" "$main" "cat > notes.md <<'EOF'
 Then git checkout topic.
 EOF"

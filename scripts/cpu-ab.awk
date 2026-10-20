@@ -1,4 +1,5 @@
-# The CPU A/B's summary (scripts/check.sh cpu <ref>; docs/performance.md, "CPU A/B"). Reads one line per
+# Copied from eq1's scripts/cpu-ab.awk (eq1 at dbb1127); listed in eq1#231.
+# The CPU A/B's summary (scripts/check.sh cpu <ref>; the plugin's performance doc, "CPU A/B"). Reads one line per
 # round and scene, tab-separated: the scene's name, its load in this tree (after) and in <ref> (before).
 # Prints, per scene in the order first read, the median after/before ratio, its min and max, how many rounds
 # went up and down, and a verdict: "slower" or "faster" when the median is at least min_change from 1.0 and

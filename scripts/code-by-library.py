@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """Attributes a Mach-O slice's __text to the libraries it was built from (scripts/check.sh size).
 
-usage: code-by-library.py <binary> <arch> <index dir>...
+usage: code-by-library.py <plugin name> <binary> <arch> <index dir>...
 
 A shipping (LTO) link puts every function in one object, so its linker map attributes nothing. The
 symbols keep their names, so each one is looked up in the same sources' non-LTO objects (the index
 directories, usually the normal build's CMakeFiles folders and the CLAP library), which say which
-JUCE module, codec or eq1 library defined it. A symbol in no object (a template instance or a
+JUCE module, codec or library of the plugin (named by its PLUGIN_NAME) defined it. A symbol in no object (a template instance or a
 function LTO renamed) is placed by the namespace in its demangled name instead.
 
 The size of a symbol is the gap to the next one in __text (the last one reaches the section's end),
 so the buckets add up to the section. Prints one line per bucket, bytes first, largest first, then
 a total, with the bytes of __text itself for comparison.
+
+Copied from eq1's scripts/code-by-library.py (eq1 at dbb1127), its names made the plugin's; listed in eq1#231.
 """
 import os
 import re
 import subprocess
 import sys
 from collections import Counter
+
+# The plugin's name (PLUGIN_NAME): its targets' prefix, its namespace and its buckets' names.
+PLUGIN = ""
 
 
 def run(*args, stdin=None):
@@ -30,11 +35,11 @@ def bucket_of_object(path):
     unix = path.replace("\\", "/")
     if "clap" in unix.lower():
         return "CLAP (clap-juce-extensions)"
-    if "/eq1_engine.dir/" in unix:
-        return "eq1 Engine"
+    if f"/{PLUGIN}_engine.dir/" in unix:
+        return f"{PLUGIN} Engine"
     module = re.search(r"/modules/(juce_[a-z0-9_]+)/", unix)
     if module is None:
-        return "eq1 Plugin Shell"
+        return f"{PLUGIN} Plugin Shell"
     module = module.group(1)
     for marker, bucket in (
         ("_Harfbuzz", "harfbuzz"),
@@ -101,8 +106,8 @@ def bucket_by_name(demangled):
     if demangled.startswith("___cxx_global_var_init") or demangled.startswith("_GLOBAL__sub_I_"):
         return "static initialisers"
     for prefix, bucket in (
-        ("eq1::", "eq1 templates (by namespace)"),
-        ("staple::", "eq1 templates (by namespace)"),
+        (f"{PLUGIN}::", f"{PLUGIN} templates (by namespace)"),
+        ("staple::", f"{PLUGIN} templates (by namespace)"),
         ("juce::", "JUCE templates (by namespace)"),
         ("std::", "libc++ templates"),
         ("hb_", "harfbuzz"),
@@ -126,9 +131,9 @@ def bucket_by_name(demangled):
         if demangled.startswith(prefix):
             return bucket
     # A template instance whose name starts with its return type: "void std::sort<juce::...>(...)".
-    owner = re.match(r"^[\w\s:<>,*&]*?\b(eq1|staple|juce|std)::", demangled)
+    owner = re.match(rf"^[\w\s:<>,*&]*?\b({re.escape(PLUGIN)}|staple|juce|std)::", demangled)
     if owner is not None:
-        return {"eq1": "eq1 templates (by namespace)", "staple": "eq1 templates (by namespace)",
+        return {PLUGIN: f"{PLUGIN} templates (by namespace)", "staple": f"{PLUGIN} templates (by namespace)",
                 "juce": "JUCE templates (by namespace)", "std": "libc++ templates"}[owner.group(1)]
     return "other"
 
@@ -147,9 +152,10 @@ def lookup(index, name):
 
 
 def main():
-    if len(sys.argv) < 4:
+    global PLUGIN
+    if len(sys.argv) < 5:
         sys.exit(__doc__)
-    binary, arch, index_dirs = sys.argv[1], sys.argv[2], sys.argv[3:]
+    PLUGIN, binary, arch, index_dirs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
     index = symbol_index(arch, index_dirs)
     symbols, end, text_size = text_symbols(binary, arch)
     demangled = run("c++filt", stdin="\n".join(name for _, name in symbols) + "\n").splitlines()

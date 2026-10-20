@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Blocks a commit whose cited docs are missing, or whose build or tests fail (.githooks/gate.sh).
+# Blocks a commit whose cited docs are missing, or whose build or tests fail (gate.sh, beside this hook).
 # A commit of Markdown alone runs the doc check only.
-# Install with scripts/install-hooks.sh. It builds and tests the working tree, so it first requires
-# the build's sources there to be exactly what is staged.
+# Install with scripts/install-hooks.sh, run from the plugin repository. It builds and tests the working tree, so it
+# first requires the build's sources there to be exactly what is staged.
+# Copied from eq1's .githooks/pre-commit (eq1 at dbb1127), run from plugkit's checkout; listed in eq1#231.
 set -euo pipefail
+hooks_dir=$(cd "$(dirname "$0")" && pwd)
 cd "$(git rev-parse --show-toplevel)"
-source .githooks/build-inputs.sh
+source "$hooks_dir/build-inputs.sh"
 
-scripts/check.sh docs
+"$hooks_dir/../scripts/check.sh" docs
 if ! git diff --cached --name-only | grep -qv '\.md$'; then
     exit 0
 fi
@@ -22,4 +24,4 @@ if [ -n "$unstaged" ]; then
     exit 1
 fi
 
-exec .githooks/gate.sh pre-commit
+exec "$hooks_dir/gate.sh" pre-commit

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Squash-merges a PR once CI passes and a reviewer has passed its head commit (docs/agents/reviewer.md).
+# Squash-merges a PR once CI passes and a reviewer has passed its head commit (the plugin's reviewer doc).
 # Stops, saying why, on a conflict with main, failed checks, no checks, a changes verdict or a head that moved
 # from the one CI ran on (gh pr merge --match-head-commit also refuses one that moves at the last moment).
 # It also refuses a head whose code still cites a ticket the PR closes (its closingIssuesReferences, or a
@@ -12,7 +12,9 @@
 #
 # --user-approved stands for the verdict when the session that built the PR merges it on the user's
 # go-ahead: it waits for CI as usual and records the user's words in the squash commit.
-# After a merge it deletes the PR's branch, on origin and locally.
+# After a merge it deletes the PR's branch, on origin and locally. Run it at the plugin repository's root.
+#
+# Copied from eq1's scripts/merge-on-green.sh (eq1 at dbb1127); listed in eq1#231.
 set -uo pipefail
 usage='usage: scripts/merge-on-green.sh <PR number> [--user-approved "<the user'"'"'s words>"]'
 pr=${1:?$usage}

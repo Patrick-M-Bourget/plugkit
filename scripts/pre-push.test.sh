@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Tests .githooks/pre-push with real pushes between throwaway repositories, its gate (.githooks/gate.sh)
-# replaced by a stub that counts its runs.
+# replaced by a stub that counts its runs. The seed repository holds the hook beside scripts/config.sh, as plugkit's
+# checkout does, and a plugkit.conf whose VAR_PREFIX is PLUGIN_.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# Copied from eq1's scripts/pre-push.test.sh (eq1 at dbb1127), its variable made the plugin's; listed in eq1#231.
 set -uo pipefail
 # Inside a git hook, GIT_DIR and GIT_INDEX_FILE point at the repository being committed to; left set,
 # the throwaway repositories' git commands would land there.
@@ -27,8 +29,10 @@ export PATH=$tmp/bin:$PATH
 
 git init -q --bare -b main "$tmp/remote.git"
 git init -q -b main "$tmp/seed"
-mkdir -p "$tmp/seed/.githooks" "$tmp/seed/engine"
+mkdir -p "$tmp/seed/.githooks" "$tmp/seed/engine" "$tmp/seed/scripts"
 cp "$hooks/pre-push" "$hooks/build-inputs.sh" "$tmp/seed/.githooks/"
+cp "$hooks/../scripts/config.sh" "$tmp/seed/scripts/"
+printf 'VAR_PREFIX=PLUGIN_\nBUILD_INPUTS=(engine)\n' > "$tmp/seed/plugkit.conf"
 printf '#!/usr/bin/env bash\necho run >> "$GATE_RUNS"\n' > "$tmp/seed/.githooks/gate.sh"
 chmod +x "$tmp/seed/.githooks/gate.sh"
 echo 1 > "$tmp/seed/engine/a.cpp"
@@ -103,9 +107,9 @@ git -C "$here" switch -q feature
 git -C "$here" rev-parse origin/feature > "$tmp/red"
 commit "$here" engine/a.cpp more
 expect refuse 0 "onto a tip that failed CI" push -q origin feature
-export EQ1_FIXES_RED_CI=1
+export PLUGIN_FIXES_RED_CI=1
 expect pass 1 "the fix for a tip that failed CI" push -q origin feature
-unset EQ1_FIXES_RED_CI
+unset PLUGIN_FIXES_RED_CI
 
 if [ "$failures" = 0 ]; then
     echo "The pre-push hook gates the checked-out branch once, skips tags, refuses untested code branches and holds a branch whose CI failed"
