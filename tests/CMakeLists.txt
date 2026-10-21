@@ -14,6 +14,7 @@ add_executable(plugkit_dsp_tests
     BellResponseTest.cpp
     BellStabilityTest.cpp
     Double2Test.cpp
+    NoSubnormalsTest.cpp
     ShapeResponseTest.cpp
     SmootherTest.cpp
     StereoPlacementTest.cpp
