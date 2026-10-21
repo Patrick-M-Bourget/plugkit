@@ -39,6 +39,7 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/AnalyzerSpectrum.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/OutputMeter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/AnalyzerLayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/DisplayGeometry.cpp
