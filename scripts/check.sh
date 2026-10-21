@@ -13,9 +13,9 @@
 #                               the editor harness, and no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh colours    only that last check: no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh hooks      the Claude Code worktree hook's, merge-on-green.sh's, the git pre-push hook's, the
-#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's and the plugin
-#                               config's tests, against fakes and scratch repos (not run by git hooks, which run
-#                               docs)
+#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the plugin
+#                               config's and the README's needed keys' tests, against fakes and scratch repos
+#                               (not run by git hooks, which run docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
 #   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
@@ -235,6 +235,8 @@ hooks() {
     "$PLUGKIT_DIR/scripts/cited-tickets.test.sh"
     step "Plugin config"
     "$PLUGKIT_DIR/scripts/plugin-config.test.sh"
+    step "Needed keys"
+    "$PLUGKIT_DIR/scripts/needed-by.test.sh"
 }
 
 # Every colour in the editor comes from the UI kit's tokens (TOKENS_DIR's Tokens.h): a colour written as a

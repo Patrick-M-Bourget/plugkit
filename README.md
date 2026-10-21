@@ -45,21 +45,21 @@ FetchContent_MakeAvailable(plugkit)
 
 ### Per-plugin config
 
-`plugkit.conf` is a bash file of `KEY=value` lines. The harness sources it, so quote values that hold spaces. `PLUGKIT_CONFIG=<path>` names a different file, relative to the plugin's root. A stage that needs a key the file leaves empty stops and names that key. The values in the table are eq1's.
+`plugkit.conf` is a bash file of `KEY=value` lines. The harness sources it, so quote values that hold spaces. `PLUGKIT_CONFIG=<path>` names a different file, relative to the plugin's root. A stage that needs a key the file leaves empty stops and names that key. "Needed by" names exactly those stages, and in parentheses the optional uses; `hooks` checks it against `check.sh` (`scripts/needed-by.py`). The values in the table are eq1's.
 
 | Key | What it is | Example (eq1) | Needed by |
 |---|---|---|---|
 | `PLUGIN_NAME` | CMake target prefix: `<name>_engine_tests`, `<name>_plugin_tests`, `<name>_cpu_budget`, `<name>_render`, `<name>_sidechain_routing_check`, the plugin target `<name>` (artefacts in `<PLUGIN_DIR>/<name>_artefacts`), the Engine target `<name>_engine`; also the C++ namespace `size` attributes code to | `eq1` | every stage |
 | `PRODUCT_NAME` | Bundle and binary name: `<product>.vst3`, `.component`, `.clap`, `.aaxplugin`, `.app`, `.exe` | `eq1` | `validate`, `size` |
-| `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build` and every stage that configures, the pre-push hook |
+| `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build`, `screens`, `cpu`, `null`, `size`, `tsan`, `asan`, the pre-push hook |
 | `SOURCE_DIRS` | Directories, space-separated, where code may not cite a closed ticket (`scripts/cited-tickets.sh`, also used by `merge-on-green.sh`) | `"engine plugin tools tests"` | `docs` |
 | `TESTS_DIR` | The tests' source directory, and their build folder under `BUILD_DIR`; one directory | `tests` | `docs`, `screens`, `cpu`, `null`, `paint`, `size`, `validate` |
-| `TEST_STEP` | The `test` stage's heading: the name of the CI step that runs it. Optional: it defaults to eq1's | `"Engine and Plugin Shell tests"` | `test` (optional) |
-| `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size`; `docs`/`colours` when set |
+| `TEST_STEP` | The `test` stage's heading: the name of the CI step that runs it. Optional: it defaults to eq1's | `"Engine and Plugin Shell tests"` | (optional: heads `test`) |
+| `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size` (and `docs`/`colours` when set) |
 | `ENGINE_DIR` | The Engine's build folder, for `size`'s code by library | `engine` | `size` |
-| `EDITOR_HARNESS` | The one test file allowed to run timers, read `<prefix>` variables and open a Graphics on an image. Optional: leave it out when the harness comes from plugkit-ui | `tests/plugin/EditorHarness.h` | `docs` (optional) |
-| `TOKENS_DIR` | The one place in `PLUGIN_DIR` allowed literal colours. Optional: leave it out when the tokens come from plugkit-ui | `plugin/staple/` | `colours` (optional) |
-| `LAB_RANGES` | Parameter ranges, space-separated, that must match between the lab and the Engine. Optional: leave it empty to skip the comparison | `"frequency gain q slope"` | `docs` |
+| `EDITOR_HARNESS` | The one test file allowed to run timers, read `<prefix>` variables and open a Graphics on an image. Optional: leave it out when the harness comes from plugkit-ui | `tests/plugin/EditorHarness.h` | (optional: read by `docs`) |
+| `TOKENS_DIR` | The one place in `PLUGIN_DIR` allowed literal colours. Optional: leave it out when the tokens come from plugkit-ui | `plugin/staple/` | (optional: read by `colours`) |
+| `LAB_RANGES` | Parameter ranges, space-separated, that must match between the lab and the Engine. Optional: leave it empty to skip the comparison | `"frequency gain q slope"` | (optional: read by `docs`) |
 | `LAB_SCRIPT` | The lab file holding `<NAME>_RANGE = (lo, hi)` lines | `tools/filter-lab/filterlab.py` | `docs`, when `LAB_RANGES` is set |
 | `LAB_SETTINGS` | The Engine header holding `inline constexpr ParameterRange <name> { lo, hi };` lines | `engine/include/eq1/Settings.h` | `docs`, when `LAB_RANGES` is set |
 | `SAMPLE_RATES` | Every sample rate the plugin supports, comma-separated, for pluginval | `44100,48000,88200,96000,176400,192000` | `validate` |
