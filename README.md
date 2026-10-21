@@ -97,6 +97,21 @@ The stages that build or run a plugin expect eq1's layout, named by the keys abo
 - **CPU A/B:** copies `<TESTS_DIR>/cpu/` and `<TESTS_DIR>/engine/Measure.h` into the ref's tree.
 - **Sidechain routing:** the check is a JUCE console app, `<name>_sidechain_routing_check`.
 
+### Coding standards
+
+plugkit's `CODING_STANDARDS.md` holds the coding standards plugkit and its plugins share. Each plugin keeps a copy at its root, where its agents and code review find it without looking anything up, at the version it pins:
+
+- **The file:** the plugin's `CODING_STANDARDS.md` is plugkit's at the tag the plugin pins, byte for byte. A plugin with rules of its own adds a blank line, the marker, and its rules.
+- **The marker:** the line `## <PLUGIN_NAME>'s own rules`, exactly, with the plugin's `PLUGIN_NAME`: `## comp1's own rules`. Everything below it is the plugin's own; everything above it is plugkit's. plugkit's own file has no such section.
+- **The check:** `scripts/check.sh docs` compares the plugin's file with the `CODING_STANDARDS.md` of the plugkit checkout it runs from, which in CI is the pinned tag. A missing file, a difference above the marker, or no blank line before it fails, with the command that fixes it. Run on plugkit itself, it checks that the file exists and has no own-rules section.
+- **Bumping `PLUGKIT_TAG`:** the same PR copies the new tag's file, from the plugin's root, with `$PLUGKIT` the new tag's checkout (`.deps/plugkit-src` once CMake has fetched it). Without own rules: `cp "$PLUGKIT/CODING_STANDARDS.md" .`. With them, keeping them:
+
+  ```sh
+  { cat "$PLUGKIT/CODING_STANDARDS.md"; echo; sed -n "/^## comp1's own rules\$/,\$p" CODING_STANDARDS.md; } > CODING_STANDARDS.md.new && mv CODING_STANDARDS.md.new CODING_STANDARDS.md
+  ```
+
+- **From v0.3.0:** the file and its check come with plugkit v0.3.0. A plugin pinning an earlier tag has neither; the PR that bumps it to v0.3.0 adds its copy.
+
 ### A plugin's CI
 
 The plugin's workflow mirrors plugkit's own: the macOS Universal and Windows x64 matrix, with sccache and a cached `.deps`. Its jobs keep the names `macOS Universal` and `Windows x64`, because `merge-on-green.sh` waits for both by name. Each step calls one stage, from the plugin's checkout:

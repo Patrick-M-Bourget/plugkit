@@ -2,7 +2,7 @@
 
 Judgement calls for review. Mechanical rules live in plugkit's `scripts/check.sh` and the git hooks instead.
 
-These are plugkit's, and every plugin built on plugkit shares them: a plugin's own `CODING_STANDARDS.md` starts with this file byte for byte, as it reads at the plugkit tag the plugin pins. The plugin's own rules follow it, after a blank line, under the heading `## <plugin>'s own rules` (the plugin's `PLUGIN_NAME`).
+These are plugkit's, and every plugin built on plugkit shares them: a plugin's own `CODING_STANDARDS.md` starts with this file byte for byte, as it reads at the plugkit tag the plugin pins. The plugin's own rules follow it, after a blank line, under the heading `## <plugin>'s own rules` (the plugin's `PLUGIN_NAME`). `scripts/check.sh docs` checks the copy (plugkit's README.md, "Coding standards").
 
 ## Tests reach what they claim to test
 

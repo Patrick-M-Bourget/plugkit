@@ -6,7 +6,7 @@
 #
 #   scripts/check.sh            docs, hooks, build, test, cpu, paint, tsan and validate (not null, which needs a ref)
 #   scripts/check.sh docs       every doc section cited in code (docs/<file>.md, "<Section>") exists, GLOSSARY.md is the only
-#                               glossary, no two ADRs share a number, the lab's parameter ranges match the
+#                               glossary, no two ADRs share a number, CODING_STANDARDS.md shares plugkit's, the lab's parameter ranges match the
 #                               plugin's, code points at no closed ticket (when gh is signed in), no test reads a saved state as raw bytes, runs
 #                               timers itself, has a non-ASCII title, reads a <prefix> environment variable or opens a
 #                               Graphics on an image outside
@@ -214,8 +214,42 @@ docs() {
     else
         echo "Skipped the closed-ticket check: gh isn't signed in"
     fi
-    [ "$broken" = 0 ] && echo "Every cited doc and section exists, every ADR has its own number, no test reads a saved state as raw bytes or a $VAR_PREFIX environment variable or opens a Graphics on an image, tests wait with harness::settle and have ASCII titles, the lab's parameter ranges match the plugin's"
+    coding_standards || broken=1
+    [ "$broken" = 0 ] && echo "Every cited doc and section exists, every ADR has its own number, CODING_STANDARDS.md shares plugkit's, no test reads a saved state as raw bytes or a $VAR_PREFIX environment variable or opens a Graphics on an image, tests wait with harness::settle and have ASCII titles, the lab's parameter ranges match the plugin's"
     return "$broken"
+}
+
+# The plugin's CODING_STANDARDS.md is plugkit's, the checkout this script runs from (the pinned tag), byte for byte,
+# and then, after a blank line, its own rules under the marker heading "## <PLUGIN_NAME>'s own rules"
+# (plugkit's README.md, "Coding standards").
+coding_standards() {
+    local ours=$PLUGKIT_DIR/CODING_STANDARDS.md marker="## $PLUGIN_NAME's own rules" line
+    if [ ! -f CODING_STANDARDS.md ]; then
+        echo "$PWD has no CODING_STANDARDS.md: copy plugkit's at the pinned tag, cp $ours CODING_STANDARDS.md" >&2
+        return 1
+    fi
+    # Run on plugkit itself, the file is the shared part, which no plugin's section follows.
+    if [ CODING_STANDARDS.md -ef "$ours" ]; then
+        if grep -nE "^## .+'s own rules$" CODING_STANDARDS.md | sed 's/$/: plugkit'"'"'s CODING_STANDARDS.md is the shared part only; a plugin'"'"'s own rules go in its copy/' >&2; then
+            return 1
+        fi
+        return
+    fi
+    line=$(grep -nxF -- "$marker" CODING_STANDARDS.md | head -1 | cut -d: -f1)
+    if [ -z "$line" ]; then
+        cmp -s CODING_STANDARDS.md "$ours" && return
+        echo "CODING_STANDARDS.md isn't plugkit's at the pinned tag ($ours), and has no '$marker' section:" \
+            "copy plugkit's, cp $ours CODING_STANDARDS.md, and put the plugin's own rules under '$marker'" >&2
+        return 1
+    fi
+    if [ "$line" -gt 2 ] && [ -z "$(sed -n "$((line - 1))p" CODING_STANDARDS.md)" ] &&
+        cmp -s <(head -n "$((line - 2))" CODING_STANDARDS.md) "$ours"; then
+        return
+    fi
+    echo "CODING_STANDARDS.md: the part above '$marker' isn't plugkit's at the pinned tag ($ours), then a blank line." \
+        "Copy plugkit's, keeping the plugin's own rules:" \
+        "{ cat $ours; echo; sed -n \"/^$marker\$/,\\\$p\" CODING_STANDARDS.md; } > CODING_STANDARDS.md.new && mv CODING_STANDARDS.md.new CODING_STANDARDS.md" >&2
+    return 1
 }
 
 # The worktree hook (.claude/hooks/one-branch-per-worktree.sh), scripts/merge-on-green.sh and the pre-push

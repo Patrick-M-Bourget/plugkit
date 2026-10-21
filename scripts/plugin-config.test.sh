@@ -15,12 +15,16 @@ chmod +x "$tmp/bin/gh"
 export PATH=$tmp/bin:$PATH
 failures=0
 
-# A scratch plugin repository holding a plugkit.conf with the given lines; prints its path.
+standards=$(dirname "$check")/../CODING_STANDARDS.md
+
+# A scratch plugin repository holding a plugkit.conf with the given lines and a copy of plugkit's
+# CODING_STANDARDS.md; prints its path.
 plugin() {
     local repo
     repo=$(mktemp -d "$tmp/plugin.XXXXXX")
     mkdir -p "$repo/engine/include/demo" "$repo/tests" "$repo/tools/lab"
     printf '%s\n' "$@" > "$repo/plugkit.conf"
+    cp "$standards" "$repo/CODING_STANDARDS.md"
     echo 'int main() { return 0; }' > "$repo/tests/Test.cpp"
     git -C "$repo" init -q
     printf '%s\n' "$repo"
@@ -127,6 +131,51 @@ expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says
 
 repo=$(plugin "${base[@]}")
 expect fail "check.sh docs" "an unknown stage prints the usage" "$repo" nonsense
+
+repo=$(plugin "${base[@]}")
+rm "$repo/CODING_STANDARDS.md"
+expect fail "has no CODING_STANDARDS.md" "a plugin without CODING_STANDARDS.md fails docs" "$repo" docs
+
+repo=$(plugin "${base[@]}")
+sed -i.bak 's/Judgement calls/Rules/' "$repo/CODING_STANDARDS.md" && rm "$repo/CODING_STANDARDS.md.bak"
+expect fail "cp $(cd "$(dirname "$standards")" && pwd)/CODING_STANDARDS.md" \
+    "a copy that drifts from plugkit's fails docs, giving the command that copies plugkit's" "$repo" docs
+
+repo=$(plugin "${base[@]}")
+printf "\n## demo's own rules\n\nDemo only.\n" >> "$repo/CODING_STANDARDS.md"
+expect pass "" "the plugin's own rules under its marker section are its own" "$repo" docs
+
+repo=$(plugin "${base[@]}")
+printf "\n## demo's own rules\n\nDemo only.\n" >> "$repo/CODING_STANDARDS.md"
+sed -i.bak 's/Judgement calls/Rules/' "$repo/CODING_STANDARDS.md" && rm "$repo/CODING_STANDARDS.md.bak"
+expect fail "the part above '## demo's own rules' isn't plugkit's" "a shared part that drifts above the marker fails" "$repo" docs
+# The command the message gives restores the shared part and keeps the plugin's own rules.
+fix=$(run "$repo" docs | sed -n 's/.*keeping the plugin.s own rules: //p')
+(cd "$repo" && eval "$fix")
+expect pass "" "the command docs gives fixes the copy" "$repo" docs
+grep -qx 'Demo only.' "$repo/CODING_STANDARDS.md" || { echo "FAIL: the fix dropped the plugin's own rules" >&2; failures=$((failures + 1)); }
+
+repo=$(plugin "${base[@]}")
+printf "## demo's own rules\n\nDemo only.\n" >> "$repo/CODING_STANDARDS.md"
+expect fail "then a blank line" "the marker section follows a blank line" "$repo" docs
+
+repo=$(plugin "${base[@]}")
+printf "\n## other's own rules\n\nOther only.\n" >> "$repo/CODING_STANDARDS.md"
+expect fail "has no '## demo's own rules' section" "only the plugin's own name marks its section" "$repo" docs
+
+# A scratch plugkit checkout, run on itself: its CODING_STANDARDS.md is the shared one, with no plugin's section.
+kit=$(mktemp -d "$tmp/plugkit.XXXXXX")
+mkdir "$kit/scripts"
+cp "$(dirname "$check")"/{check,config,cited-tickets}.sh "$kit/scripts/"
+cp "$standards" "$kit/CODING_STANDARDS.md"
+printf '%s\n' "${base[@]/PLUGIN_NAME=demo/PLUGIN_NAME=plugkit}" > "$kit/plugkit.conf"
+git -C "$kit" init -q
+check=$kit/scripts/check.sh expect pass "" "plugkit's own CODING_STANDARDS.md passes on plugkit" "$kit" docs
+printf "\n## plugkit's own rules\n\nplugkit only.\n" >> "$kit/CODING_STANDARDS.md"
+check=$kit/scripts/check.sh expect fail "plugkit's CODING_STANDARDS.md is the shared part only" \
+    "plugkit's own CODING_STANDARDS.md has no own-rules section" "$kit" docs
+rm "$kit/CODING_STANDARDS.md"
+check=$kit/scripts/check.sh expect fail "has no CODING_STANDARDS.md" "plugkit without CODING_STANDARDS.md fails" "$kit" docs
 
 if [ "$failures" = 0 ]; then
     echo "A plugin runs the harness from its own repository, with its own plugkit.conf"
