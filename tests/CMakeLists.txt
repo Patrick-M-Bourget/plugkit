@@ -13,6 +13,7 @@ include(Catch)
 add_executable(plugkit_dsp_tests
     BellResponseTest.cpp
     BellStabilityTest.cpp
+    Double2Test.cpp
     ShapeResponseTest.cpp
     SmootherTest.cpp
 )
