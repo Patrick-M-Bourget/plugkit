@@ -38,6 +38,7 @@ add_executable(plugkit_plugin_tests
     ui/EditHistoryTest.cpp
     ui/EditorTickTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/PresetLibraryTest.cpp
     ui/PresetTest.cpp
     ui/RestoreTest.cpp
     ui/StapleControlsTest.cpp

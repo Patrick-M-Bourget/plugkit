@@ -69,6 +69,12 @@ public:
         return presets;
     }
 
+    // Its Preset Library's config, as its Session builds the library.
+    static plugkit::ui::PresetLibrary::Config libraryConfig()
+    {
+        return { "plugkit test", ".plugkittest", stateType, factoryPresets() };
+    }
+
     // Brings a saved state or a Preset from an older version up to stateVersion, one version at a time.
     static void migrate (juce::ValueTree& state)
     {
@@ -142,11 +148,12 @@ private:
 
     static plugkit::ui::Session::Config sessionConfig (juce::File userSettingsFile, juce::File presetFolder)
     {
+        const auto library = libraryConfig();
         plugkit::ui::Session::Config config;
-        config.productName = "plugkit test";
-        config.presetFileExtension = ".plugkittest";
-        config.presetType = stateType;
-        config.factoryPresets = factoryPresets();
+        config.productName = library.productName;
+        config.presetFileExtension = library.fileExtension;
+        config.presetType = library.rootType;
+        config.factoryPresets = library.factoryPresets;
         config.stateVersion = stateVersion;
         config.migrate = migrate;
         config.window = window;
