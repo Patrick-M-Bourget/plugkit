@@ -33,10 +33,12 @@ add_test(NAME dsp_has_no_juce
 # plugkit-ui's tests, in a plain executable compiling JUCE and plugkit-ui as a plugin's tests do. One source per line,
 # as above.
 add_executable(plugkit_plugin_tests
+    ui/ABCompareTest.cpp
     ui/AccessibilityTest.cpp
     ui/EditHistoryTest.cpp
     ui/EditorTickTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/PresetTest.cpp
     ui/RestoreTest.cpp
     ui/StapleControlsTest.cpp
     ui/StapleTest.cpp
