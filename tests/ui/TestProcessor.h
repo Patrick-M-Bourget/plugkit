@@ -271,6 +271,22 @@ public:
 
     plugkit::ui::EditorTick& editorTick() override { return tick; }
 
+    // With nothing in the editor focused, Tab focuses its first control and Shift+Tab its last, showing the focus
+    // ring. As eq1's PluginEditor::keyPressed (eq1 at dbb1127), without its Global Bypass, undo and redo keys.
+    bool keyPressed (const juce::KeyPress& key) override
+    {
+        if (key.isKeyCode (juce::KeyPress::tabKey) && ! isParentOf (getCurrentlyFocusedComponent()))
+        {
+            const auto all = createKeyboardFocusTraverser()->getAllComponents (this);
+            if (all.empty())
+                return false;
+            lookAndFeel.showFocusRing (true);
+            (key.getModifiers().isShiftDown() ? all.back() : all.front())->grabKeyboardFocus();
+            return true;
+        }
+        return false;
+    }
+
     void resized() override
     {
         auto header = getLocalBounds().removeFromTop (headerHeight).reduced (14, 0);
