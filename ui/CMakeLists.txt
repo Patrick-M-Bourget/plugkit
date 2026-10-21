@@ -64,5 +64,5 @@ target_sources(plugkit-ui INTERFACE
 )
 target_include_directories(plugkit-ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(plugkit-ui INTERFACE cxx_std_20)
-# juce_dsp for the Analyzer's FFT: a consumer that fetched JUCE has it.
-target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts juce::juce_gui_basics juce::juce_audio_processors juce::juce_dsp)
+# juce_dsp for the Analyzer's FFT: a consumer that fetched JUCE has it. plugkit-dsp for the Output Level.
+target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts plugkit::dsp juce::juce_gui_basics juce::juce_audio_processors juce::juce_dsp)

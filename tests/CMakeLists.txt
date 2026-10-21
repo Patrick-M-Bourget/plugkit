@@ -38,6 +38,7 @@ add_executable(plugkit_plugin_tests
     ui/DisplayLayersTest.cpp
     ui/EditorTickTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/OutputMeterTest.cpp
     ui/StapleControlsTest.cpp
     ui/StapleTest.cpp
     ui/ValueTextTest.cpp
