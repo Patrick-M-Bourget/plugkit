@@ -36,6 +36,7 @@ add_library(plugkit-ui INTERFACE)
 add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Accessibility.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp

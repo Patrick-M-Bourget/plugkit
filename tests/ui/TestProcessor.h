@@ -1,8 +1,12 @@
 #pragma once
 
 // plugkit's stand-in for a plugin's processor in plugkit-ui's tests: host parameters of each kind the kit's controls
-// attach to, and nothing else. Its ranges and text are eq1's Band Frequency, Gain, Shape and Stereo Placement ones
+// attach to, and an editor with Staple's look, its tick and a Knob for each number. Its ranges and text are eq1's Band Frequency, Gain, Shape and Stereo Placement ones
 // (eq1's plugin/Parameters.cpp), so the tests copied from eq1 check the same values.
+
+#include "plugkit/ui/EditorTick.h"
+#include "plugkit/ui/staple/LookAndFeel.h"
+#include "plugkit/ui/staple/controls/Knob.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -51,8 +55,8 @@ public:
     void prepareToPlay (double, int) override {}
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
-    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
-    bool hasEditor() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -104,6 +108,42 @@ private:
 
     juce::AudioProcessorValueTreeState parameters { *this, nullptr, "plugkit_test", layout() };
 };
+
+// The test processor's editor: Staple's LookAndFeel, the editor's tick (EditorTick), and a Knob for Frequency and one
+// for Gain, each described by and attached to its parameter, as a plugin's editor has them.
+class TestEditor final : public juce::AudioProcessorEditor, public plugkit::ui::EditorTick::Host
+{
+public:
+    explicit TestEditor (TestProcessor& p) : AudioProcessorEditor (p), tick (p)
+    {
+        setLookAndFeel (&lookAndFeel);
+        for (auto* knob : { &frequency, &gain })
+            addAndMakeVisible (*knob);
+        frequency.describe (frequencyParameter);
+        gain.describe (gainParameter);
+        setSize (300, 200);
+    }
+
+    ~TestEditor() override { setLookAndFeel (nullptr); }
+
+    plugkit::ui::EditorTick& editorTick() override { return tick; }
+
+    void resized() override
+    {
+        frequency.setBounds (20, 40, frequency.getIdealSize(), frequency.getIdealSize());
+        gain.setBounds (160, 40, gain.getIdealSize(), gain.getIdealSize());
+    }
+
+private:
+    staple::LookAndFeel lookAndFeel;
+    plugkit::ui::EditorTick tick;
+    juce::RangedAudioParameter& frequencyParameter = *dynamic_cast<TestProcessor&> (processor).parameterState().getParameter (TestProcessor::frequencyId);
+    juce::RangedAudioParameter& gainParameter = *dynamic_cast<TestProcessor&> (processor).parameterState().getParameter (TestProcessor::gainId);
+    staple::Knob frequency { staple::tokens::knob::frequency, "Frequency" }, gain { staple::tokens::knob::gain, "Gain" };
+    juce::SliderParameterAttachment frequencyAttachment { frequencyParameter, frequency }, gainAttachment { gainParameter, gain };
+};
+
+inline juce::AudioProcessorEditor* TestProcessor::createEditor() { return new TestEditor (*this); }
 
 // Counts the edits made through a processor's host parameters, as the plugin's edit history makes undo steps of them
 // (eq1's plugin/EditHistory.cpp): one per outermost run of gestures in which a parameter it gestured changed value.

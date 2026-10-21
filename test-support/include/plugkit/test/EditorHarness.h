@@ -1,8 +1,10 @@
 #pragma once
 
 // Copied from eq1's tests/plugin/EditorHarness.h (eq1 at dbb1127), its screenshots folder named by the plugin's
-// PLUGKIT_HARNESS_VAR_PREFIX, without OpenEditor; listed in eq1#231.
+// PLUGKIT_HARNESS_VAR_PREFIX, and OpenEditor a template over the plugin's processor, without eq1's EQ display helpers,
+// which eq1's subclass of it keeps; listed in eq1#231.
 
+#include "plugkit/ui/EditorTick.h"
 #include "plugkit/ui/staple/controls/Tween.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -15,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 // The plugin's VAR_PREFIX (its plugkit.conf), as a string literal: the harness reads <prefix>SCREENS. The plugin's
@@ -237,6 +240,103 @@ inline void checkPopInStart (const juce::Component& component, juce::Rectangle<f
     CHECK_THAT (drawn.getCentreX(), WithinAbs (endsAt.getCentreX(), 1.0e-3));
     CHECK_THAT (drawn.getCentreY(), WithinAbs (endsAt.getCentreY() + 3.0f, 1.0e-3));
 }
+
+// The editor in a window of its own, as a host shows it, so it takes keyboard focus. Keys go through
+// the window, to the focused control and up through its parents, as the user's do. Processor is the
+// plugin's, default-constructed; its editor is an EditorTick::Host. A plugin's own subclass adds the
+// helpers for its displays (eq1's sends the mouse straight to its EQ display).
+template <typename Processor>
+struct OpenEditor
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    Processor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor { processor.createEditor() };
+
+    OpenEditor()
+    {
+        editor->addToDesktop (0);
+        editor->setVisible (true);
+    }
+
+    ~OpenEditor()
+    {
+        juce::PopupMenu::dismissAllActiveMenus();
+        editor.reset();
+    }
+
+    OpenEditor (const OpenEditor&) = delete;
+    OpenEditor& operator= (const OpenEditor&) = delete;
+
+    // The editor's one tick (EditorTick), which its components follow the processor on.
+    plugkit::ui::EditorTick& editorTick() { return dynamic_cast<plugkit::ui::EditorTick::Host&> (*editor).editorTick(); }
+
+    // The host parameter with this ID; the test fails without one.
+    juce::RangedAudioParameter& parameter (const juce::String& id)
+    {
+        for (auto* p : processor.getParameters())
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p); ranged != nullptr && ranged->getParameterID() == id)
+                return *ranged;
+        FAIL ("No host parameter has the ID " << id);
+        throw std::logic_error ("unreachable");
+    }
+    // Its plain value.
+    float value (const juce::String& id) { return parameter (id).convertFrom0to1 (parameter (id).getValue()); }
+
+    void set (const juce::String& id, float plain) { parameter (id).setValueNotifyingHost (parameter (id).convertTo0to1 (plain)); }
+
+    // Lets the editor's timers run for milliseconds, so it shows what the parameters hold (harness::settle).
+    void settle (int milliseconds = 60) { harness::settle (milliseconds); }
+    // Lets them run until done() is true (harness::settleUntil).
+    bool settleUntil (const std::function<bool()>& done) { return harness::settleUntil (done); }
+    // Lets them run, then until every animation has ended (harness::settleAnimations).
+    void settleAnimations (int milliseconds = 60) { harness::settleAnimations (milliseconds); }
+
+    // Where c is, in the editor's coordinates.
+    juce::Rectangle<int> inEditor (juce::Component& c) const { return editor->getLocalArea (&c, c.getLocalBounds()); }
+
+    // The first showing child of the editor that is a T titled title (any T without one).
+    template <typename T = juce::Component>
+    T& showing (const juce::String& title = {})
+    {
+        auto found = findAll<T> ([&title] (T& c) { return (title.isEmpty() || c.getTitle() == title) && c.isShowing(); });
+        INFO ("Nothing showing is titled " << title);
+        REQUIRE_FALSE (found.empty());
+        return *found.front();
+    }
+
+    // Every child of the editor, at any depth, that is a T and passes test.
+    template <typename T>
+    std::vector<T*> findAll (std::function<bool (T&)> test = [] (T&) { return true; })
+    {
+        std::vector<T*> found;
+        std::function<void (juce::Component&)> visit = [&] (juce::Component& parent) {
+            for (auto* child : parent.getChildren())
+            {
+                if (auto* t = dynamic_cast<T*> (child); t != nullptr && test (*t))
+                    found.push_back (t);
+                visit (*child);
+            }
+        };
+        visit (*editor);
+        return found;
+    }
+
+    // A key pressed and released in the window, as the user types it.
+    bool press (const juce::KeyPress& key)
+    {
+        const bool used = hold (key);
+        release();
+        return used;
+    }
+    // A key pressed, or auto-repeated while held, without its release.
+    bool hold (const juce::KeyPress& key)
+    {
+        editor->getPeer()->handleKeyUpOrDown (true);
+        return editor->getPeer()->handleKeyPress (key);
+    }
+    void release() { editor->getPeer()->handleKeyUpOrDown (false); }
+};
+
 
 // Saved sessions, decoded and restored as a host does.
 
