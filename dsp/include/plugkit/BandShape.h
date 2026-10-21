@@ -2,8 +2,7 @@
 
 // What a Shape design reads from a Band's settings. Shape, isCut, hasSlope and liveGainLimitDb are copied from eq1's
 // engine/include/eq1/Settings.h (eq1 at dbb1127): the same enumerators in the same order, the same values. BandShape
-// holds the fields of eq1's BandSettings that structureOf() and designBand() read, and nothing else (comp1#5's
-// decision); eq1 converts its BandSettings to one at those call sites. Listed in eq1#231.
+// holds the fields of eq1's BandSettings that structureOf() and designBand() read, and nothing else. Listed in eq1#231.
 
 namespace plugkit
 {
