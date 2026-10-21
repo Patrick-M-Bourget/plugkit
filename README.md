@@ -105,12 +105,16 @@ The plugin's workflow mirrors plugkit's own: the macOS Universal and Windows x64
     env:
       FETCHCONTENT_BASE_DIR: ${{ github.workspace }}/.deps
       GH_TOKEN: ${{ github.token }}
-      PLUGKIT: ${{ runner.temp }}/plugkit
     steps:
       - uses: actions/checkout@v5
       # ... Ninja, the MSVC developer environment, sccache and the .deps cache, as in plugkit's ci.yml
+      # A job's env can't read the runner context, so the later steps find the checkout through GITHUB_ENV, as a
+      # path Git Bash runs scripts from on Windows too.
       - name: plugkit at the pinned tag
-        run: git clone --quiet --depth 1 --branch "$(sed -n 's/^PLUGKIT_TAG=//p' plugkit.conf)" https://github.com/Patrick-M-Bourget/plugkit.git "$PLUGKIT"
+        run: |
+          PLUGKIT=$(cygpath -u "$RUNNER_TEMP" 2> /dev/null || echo "$RUNNER_TEMP")/plugkit
+          echo "PLUGKIT=$PLUGKIT" >> "$GITHUB_ENV"
+          git clone --quiet --depth 1 --branch "$(sed -n 's/^PLUGKIT_TAG=//p' plugkit.conf)" https://github.com/Patrick-M-Bourget/plugkit.git "$PLUGKIT"
       - name: Doc references
         run: '"$PLUGKIT/scripts/check.sh" docs'
       - name: Build
