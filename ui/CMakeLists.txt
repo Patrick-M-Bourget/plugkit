@@ -40,6 +40,9 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/DisplayGeometry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/EdgeFadeLayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/GridLayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Fonts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Icons.cpp
