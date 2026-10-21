@@ -1,12 +1,16 @@
 // Copied from eq1's tests/plugin/EditHistoryTest.cpp (eq1 at dbb1127), its generic cases against plugkit's test
 // processor: edits inside gestures on its parameters stand in for eq1's BandEditing (adding, dragging and reshaping
-// Bands), and a case for the 500-step limit is added. The Band, Spectrum Grab and wheel cases stay in eq1.
+// Bands). Cases for the 500-step limit and for a session restored from another thread while the editor is open are
+// added. The Band, Spectrum Grab and wheel cases stay in eq1.
 
 #include "TestProcessor.h"
+#include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/EditHistory.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <thread>
 
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
@@ -205,6 +209,19 @@ TEST_CASE ("A new edit after an undo replaces what could be redone")
     CHECK (host.history.undoSteps() == 2);
 }
 
+TEST_CASE ("The undo history is empty after a session is reloaded")
+{
+    Host host;
+    host.edit (TestProcessor::gainId, 6.0f);
+    host.edit (TestProcessor::shapeId, 5.0f);
+    host.history.undo();
+    juce::MemoryBlock state;
+    host.processor.getStateInformation (state);
+    host.processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+    CHECK_FALSE (host.history.canUndo());
+    CHECK_FALSE (host.history.canRedo());
+}
+
 TEST_CASE ("Host Automation during an editor drag stays out of the drag's undo step")
 {
     Host host;
@@ -219,6 +236,60 @@ TEST_CASE ("Host Automation during an editor drag stays out of the drag's undo s
     CHECK_THAT (host.value (TestProcessor::frequencyId), WithinRel (1000.0f, 1.0e-4f));
     CHECK_THAT (host.value (TestProcessor::gainId), WithinAbs (-9.0, 1.0e-3));
     CHECK (host.value (TestProcessor::placementId) == 2.0f);
+}
+
+TEST_CASE ("A session restored in the middle of a drag leaves the undo history empty")
+{
+    Host host;
+    host.edit (TestProcessor::frequencyId, 100.0f);
+    juce::MemoryBlock state;
+    host.processor.getStateInformation (state);
+
+    host.beginDrag ({ TestProcessor::frequencyId });
+    host.dragTo (TestProcessor::frequencyId, 200.0f);
+    host.processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+    host.dragTo (TestProcessor::frequencyId, 300.0f);
+    host.endDrag ({ TestProcessor::frequencyId });
+    CHECK_FALSE (host.history.canUndo());
+    CHECK_FALSE (host.history.canRedo());
+
+    // The next edit is recorded as usual.
+    host.edit (TestProcessor::shapeId, 5.0f);
+    CHECK (host.history.undoSteps() == 1);
+}
+
+TEST_CASE ("A session restored from the host's own thread while the editor is open and a drag is under way empties the undo history once the message thread catches up")
+{
+    harness::OpenEditor<TestProcessor> host;
+    auto& history = host.processor.editHistory();
+    auto& frequency = host.parameter (TestProcessor::frequencyId);
+    frequency.beginChangeGesture();
+    host.set (TestProcessor::frequencyId, 500.0f);
+    frequency.endChangeGesture();
+    juce::MemoryBlock state;
+    host.processor.getStateInformation (state);
+    REQUIRE (history.undoSteps() == 1);
+
+    frequency.beginChangeGesture();
+    host.set (TestProcessor::frequencyId, 2000.0f);
+    std::thread hostThread ([&] { host.processor.setStateInformation (state.getData(), static_cast<int> (state.getSize())); });
+    hostThread.join();
+    // The restore reached the parameters, and the history shows nothing to undo, before the message thread hears of it.
+    CHECK_THAT (host.value (TestProcessor::frequencyId), WithinRel (500.0f, 1.0e-4f));
+    CHECK_FALSE (history.canUndo());
+    CHECK_FALSE (history.isEditing());
+    host.settle();
+    host.set (TestProcessor::frequencyId, 3000.0f);
+    frequency.endChangeGesture();
+    CHECK_FALSE (history.canUndo());
+
+    // The next edit is recorded as usual.
+    frequency.beginChangeGesture();
+    host.set (TestProcessor::frequencyId, 4000.0f);
+    frequency.endChangeGesture();
+    CHECK (history.undoSteps() == 1);
+    history.undo();
+    CHECK_THAT (host.value (TestProcessor::frequencyId), WithinRel (3000.0f, 1.0e-4f));
 }
 
 TEST_CASE ("Undo and redo wait until an edit in progress is finished")

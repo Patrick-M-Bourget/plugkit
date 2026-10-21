@@ -37,8 +37,10 @@ add_executable(plugkit_plugin_tests
     ui/EditHistoryTest.cpp
     ui/EditorTickTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/RestoreTest.cpp
     ui/StapleControlsTest.cpp
     ui/StapleTest.cpp
+    ui/StateTest.cpp
     ui/ValueTextTest.cpp
 )
 target_compile_definitions(plugkit_plugin_tests PRIVATE

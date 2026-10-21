@@ -35,11 +35,16 @@ juce_add_binary_data(plugkit-ui-fonts
 add_library(plugkit-ui INTERFACE)
 add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ABCompare.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Accessibility.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditHistory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetLibrary.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetSettings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/SetTogether.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/UserSettings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Fonts.cpp
@@ -61,4 +66,4 @@ target_sources(plugkit-ui INTERFACE
 )
 target_include_directories(plugkit-ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(plugkit-ui INTERFACE cxx_std_20)
-target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts juce::juce_gui_basics juce::juce_audio_processors)
+target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts juce::juce_gui_basics juce::juce_audio_processors juce::juce_data_structures)
