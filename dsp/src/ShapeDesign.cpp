@@ -72,7 +72,7 @@ void lowShelfSections (int order, double dcGain, double q, Use use)
 }
 
 // A resonant shelf section has sharp zeros and sharp poles, more than one matched biquad can fit.
-// Above Q 2 each second-order section is split in two biquads (eq1's dsp/filter-design.md, "Resonant
+// Above Q 2 each second-order section is split in two biquads (eq1's docs/dsp/filter-design.md, "Resonant
 // shelves"): its poles over zeros at the Q the section has at Q 2, and the zeros' extra resonance,
 // (zeros at their own Q) / (zeros at that Q), designed as its inverse, whose sharp poles the matched
 // z-transform follows, and swapped back. The split eases in from Q 2 to Q 2.5, and fades out as the
@@ -292,7 +292,7 @@ BiquadCoefficients heldUpperSection (const AnalogSection& upper, double referenc
 //
 // Above 24 dB/oct, near Nyquist, the upper pairs whose natural frequency is beyond what can be placed
 // would each bump up a little where they are held, and many small errors add up: a steep Band Pass
-// is designed for that (eq1's dsp/filter-design.md, "Band Pass sections").
+// is designed for that (eq1's docs/dsp/filter-design.md, "Band Pass sections").
 Cascade designBandPass (const ShapeParameters& p, double sampleRate)
 {
     Cascade cascade;
@@ -458,7 +458,7 @@ Structure structureOf (const BandShape& shape)
         return { shape.shape, brickwallOrder };
 
     // The stored Slope is raised to the Shape's minimum and rounded to the nearest whole order
-    // (eq1's ADR 0003; eq1's dsp/filter-design.md, "Slopes between whole orders").
+    // (eq1's ADR 0003; eq1's docs/dsp/filter-design.md, "Slopes between whole orders").
     // A Notch's order counts 12 dB/oct steps.
     const double slope = std::clamp (shape.slope, minimumSlope (shape.shape), 6.0 * maxSlopeOrder);
     const double step = shape.shape == Shape::Notch ? 12.0 : 6.0;

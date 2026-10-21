@@ -94,12 +94,18 @@ harness_exclude() {
 harness_name=${EDITOR_HARNESS:-the editor harness}
 
 # A citation in code, docs/<file>.md, "<Section>", must name a doc that exists and a heading or bold
-# label (**<Section>** or **<Section>:**) in it; a bare docs/<file>.md must name a doc that exists.
+# label (**<Section>** or **<Section>:**) in it; a bare docs/<file>.md must name a doc that exists. A citation of
+# another repository's doc names that repository first, <repo>'s docs/<file>.md (eq1's docs/dsp/filter-design.md),
+# and isn't checked: only this repository's docs are here. One naming PLUGIN_NAME is this repository's, and is.
 docs() {
     need VAR_PREFIX SOURCE_DIRS TESTS_DIR
     step "Doc references"
     local broken=0 ref file section exclude=()
     while IFS= read -r ref; do
+        case "$ref" in
+            "$PLUGIN_NAME's "*) ref=${ref#"$PLUGIN_NAME's "} ;;
+            *"'s "*) continue ;;
+        esac
         file=${ref%%,*}
         if [ ! -f "$file" ]; then
             echo "$ref: no such file" >&2
@@ -113,7 +119,7 @@ docs() {
             echo "$ref: no such section" >&2
             broken=1
         fi
-    done < <(git ls-files -z -- ':!*.md' | xargs -0 grep -hoE 'docs/[A-Za-z0-9_./-]+\.md(, "[^"]+")?' | sort -u)
+    done < <(git ls-files -z -- ':!*.md' | xargs -0 grep -hoE "([A-Za-z0-9_-]+'s )?docs/[A-Za-z0-9_./-]+\\.md(, \"[^\"]+\")?" | sort -u)
     # One glossary: GLOSSARY.md at the root (or the ones GLOSSARY-MAP.md lists). A copy elsewhere,
     # such as one bundled with a design handoff, goes stale.
     if [ ! -f GLOSSARY-MAP.md ]; then

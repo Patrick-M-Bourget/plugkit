@@ -55,7 +55,7 @@ struct BiquadState
     double s1 = 0.0, s2 = 0.0;
 
     // Nothing left of what the section filtered: an identity section with a clear state passes its
-    // input unchanged (eq1's performance.md, "Identity sections").
+    // input unchanged (eq1's docs/performance.md, "Identity sections").
     bool isClear() const { return s1 == 0.0 && s2 == 0.0; }
 
     float process (const BiquadCoefficients& c, float input)

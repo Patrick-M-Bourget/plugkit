@@ -82,7 +82,7 @@ double cutDb (double f, double frequency, int order, double q, bool lowCut)
 }
 
 // Allowed Cut error in dB, above and below the target, by where Frequency sits relative to Nyquist
-// (eq1's dsp/filter-design.md, "Test tolerances"). A steep Cut's dB error at its corner says little,
+// (eq1's docs/dsp/filter-design.md, "Test tolerances"). A steep Cut's dB error at its corner says little,
 // so the target may shift by a twelfth of an octave either way.
 struct CutTolerance
 {
@@ -144,7 +144,7 @@ double allPassPhase (double f, double frequency, int order, double q)
     return phase;
 }
 
-// Allowed Band Pass and Notch error in dB, read as for Cuts (eq1's dsp/filter-design.md, "Test tolerances").
+// Allowed Band Pass and Notch error in dB, read as for Cuts (eq1's docs/dsp/filter-design.md, "Test tolerances").
 CutTolerance bandTolerance (Shape s, double sampleRate, double frequency, int order)
 {
     const double position = frequency / (sampleRate / 2.0);
@@ -169,7 +169,7 @@ BandShape shape (Shape s, double frequency, double gain, double q, double slope)
     return { .shape = s, .slope = slope, .gain = gain, .frequency = frequency, .q = q };
 }
 
-// Allowed shelf error as a share of the curve's own span in dB (eq1's dsp/filter-design.md, "Test
+// Allowed shelf error as a share of the curve's own span in dB (eq1's docs/dsp/filter-design.md, "Test
 // tolerances"): resonant shelves (Q above 2) split each section in two biquads, and come within 12% up
 // to 0.45 x Nyquist as gentle ones do. Nearer Nyquist shelves are the limits of a cascade of
 // decramped biquads (eq1's ADR 0001): resonant ones a little more up to 0.73 x Nyquist, and as gentle ones
@@ -245,7 +245,7 @@ TEST_CASE ("Low Shelf, High Shelf and Tilt Shelf match their analog targets up t
 // The test above reads shelves at a few Frequencies; a resonant shelf's error can peak sharply
 // between them, where a section's zeros or poles sit near Nyquist. This one moves Frequency in small
 // steps through that region, and reads the response at 201 points, as the filter lab does
-// (eq1's dsp/filter-design.md, "Test tolerances").
+// (eq1's docs/dsp/filter-design.md, "Test tolerances").
 TEST_CASE ("Resonant shelves match their analog targets wherever a section's zeros or poles near Nyquist", "[response]")
 {
     // The second-order section's zeros and poles sit at rz and 1 / rz times Frequency (Low Shelf; a
@@ -323,7 +323,7 @@ TEST_CASE ("Butterworth shelves reach half their Gain at Frequency and their ful
 
 TEST_CASE ("Shelves with Q up to 2 are not split")
 {
-    // A second-order shelf section splits in two biquads only above Q 2 (eq1's dsp/filter-design.md,
+    // A second-order shelf section splits in two biquads only above Q 2 (eq1's docs/dsp/filter-design.md,
     // "Resonant shelves"); at Q 2 and below its second biquad is exactly the identity. These are the
     // responses of the one-biquad-per-section design, at 9 kHz and 48 kHz, where splitting would move them.
     struct Case

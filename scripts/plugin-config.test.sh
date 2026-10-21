@@ -71,6 +71,14 @@ echo '// See docs/missing''.md.' > "$repo/engine/a.cpp"
 expect fail "docs/missing" "called from a subdirectory, it checks the whole plugin repository" "$repo/engine/sub" docs
 
 repo=$(plugin "${base[@]}")
+echo "// See eq1's docs/missing"'.md, "Nowhere".' > "$repo/engine/a.cpp"
+expect pass "" "docs skips a pointer into another repository's docs, prefixed with its name" "$repo" docs
+
+repo=$(plugin "${base[@]}")
+echo "// See demo's docs/missing"'.md, "Nowhere".' > "$repo/engine/a.cpp"
+expect fail "docs/missing" "a pointer prefixed with the plugin's own name is checked" "$repo" docs
+
+repo=$(plugin "${base[@]}")
 echo 'auto v = std::getenv ("DEMO_RENDERS");' > "$repo/tests/Env.cpp"
 expect fail "reads a DEMO_ environment variable" "the env-variable rule uses the plugin's VAR_PREFIX" "$repo" docs
 
