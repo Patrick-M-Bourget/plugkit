@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Blocks a push whose build or tests fail (gate.sh, beside this hook). A rebase rewrites commits without running
+# the pre-commit hook, so the pushed commits get the same gate here. It builds and tests the working
+# tree, so every pushed branch with more than Markdown changes must be the checked-out commit, with
+# nothing uncommitted in what the build reads; a push of several branches is gated once, on that commit.
+# Not gated: a push of Markdown changes alone, a deletion, a tag, the pr-assets images, or a tree the
+# gate already passed (the commit hook's, when nothing was rebased since).
+# It also refuses to push onto a branch whose tip failed CI (a draft PR's integration branch, say) until that
+# failure is fixed: <prefix>FIXES_RED_CI=1 (the plugin's VAR_PREFIX) lets the push that fixes it through. Without
+# gh, or offline, that check is skipped.
+# Tests: scripts/pre-push.test.sh.
+# Copied from eq1's .githooks/pre-push (eq1 at dbb1127), its variable made the plugin's; listed in eq1#231.
+set -euo pipefail
+hooks_dir=$(cd "$(dirname "$0")" && pwd)
+cd "$(git rev-parse --show-toplevel)"
+source "$hooks_dir/build-inputs.sh"
+need VAR_PREFIX
+fixes_red_ci=${VAR_PREFIX}FIXES_RED_CI
+
+zero=0000000000000000000000000000000000000000
+head=$(git rev-parse HEAD)
+gate=no
+
+# red_ci <remote ref> <remote sha>: refuses when CI failed on the remote tip, naming the failed jobs.
+red_ci() {
+    if [ "$2" = "$zero" ] || [ "${!fixes_red_ci:-}" = 1 ] || ! command -v gh > /dev/null; then
+        return 0
+    fi
+    local run
+    run=$(gh run list --commit "$2" --json conclusion,databaseId,url \
+        -q 'map(select(.conclusion == "failure"))[0] | "\(.databaseId) \(.url)"' 2> /dev/null) || return 0
+    [ -n "$run" ] || return 0
+    echo "pre-push: CI failed on ${1#refs/heads/}'s tip (${2:0:7}): $(gh run view "${run%% *}" --json jobs \
+        -q '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")' 2> /dev/null), ${run#* }" >&2
+    echo "pre-push: fix that first; push the fix with $fixes_red_ci=1" >&2
+    return 1
+}
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue # deleting a branch or tag
+    case $remote_ref in
+    refs/tags/*) continue ;;          # a tag names a commit; it brings no new build to test
+    refs/heads/pr-assets) continue ;; # images for PR comments (scripts/pr-images.sh)
+    esac
+    red_ci "$remote_ref" "$remote_sha" || exit 1
+    # A new branch, or a remote tip this repository hasn't fetched (pushed from elsewhere), is compared
+    # with where it left main.
+    base=$remote_sha
+    if [ "$base" = "$zero" ] || ! git cat-file -e "$base^{commit}" 2> /dev/null; then
+        base=$(git merge-base "$local_sha" origin/main 2> /dev/null || echo "")
+    fi
+    changed=$(if [ -n "$base" ]; then git diff --name-only "$base" "$local_sha"; else git show --name-only --format= "$local_sha"; fi)
+    printf '%s\n' "$changed" | grep -qv '\.md$' || continue
+    if [ "$local_sha" != "$head" ]; then
+        echo "pre-push: $local_ref isn't checked out here, so its build can't be tested; check it out and push from it" >&2
+        exit 1
+    fi
+    gate=yes
+done
+[ "$gate" = yes ] || exit 0
+
+dirty=$(git status --porcelain=v1 --untracked-files=all -- "${build_inputs[@]}")
+if [ -n "$dirty" ]; then
+    echo "pre-push: these differ from the pushed commit; commit them or set them aside first:" >&2
+    printf '%s\n' "$dirty" >&2
+    exit 1
+fi
+# The commit hook's gate already built and tested this exact tree (no rebase or amend since).
+if [ "$(cat "${BUILD_DIR:-build}/gate-passed-tree" 2> /dev/null)" = "$(git rev-parse 'HEAD^{tree}')" ]; then
+    echo "pre-push: this tree already passed the build and tests; not run again"
+    exit 0
+fi
+exec "$hooks_dir/gate.sh" pre-push

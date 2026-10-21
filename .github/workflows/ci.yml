@@ -1,0 +1,89 @@
+# Copied from eq1's .github/workflows/ci.yml (eq1 at dbb1127), keeping only the stages a library runs; listed in
+# eq1#231.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # Every pull request, whatever its base branch.
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Each step runs one part of scripts/check.sh, so a local run of the script checks what CI checks. plugkit is a
+# library: the stages that need a plugin (validate, cpu, null, paint, size, screens) run in each plugin's own CI.
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Universal
+            os: macos-latest
+          - name: Windows x64
+            os: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      FETCHCONTENT_BASE_DIR: ${{ github.workspace }}/.deps
+      GH_TOKEN: ${{ github.token }}
+      # sccache caches compiled objects in the GitHub Actions cache, so unchanged sources aren't compiled
+      # again. Universal macOS objects (two -arch flags) are cached too.
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_MULTIARCH: "1"
+      CMAKE_C_COMPILER_LAUNCHER: sccache
+      CMAKE_CXX_COMPILER_LAUNCHER: sccache
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Ninja
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # Puts cl and Visual Studio's Ninja on the PATH, so scripts/check.sh builds with Ninja.
+      - name: MSVC developer environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: .deps
+          # A restored folder built with another CMake generator is rebuilt by scripts/check.sh build.
+          key: deps-v2-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/**', 'scripts/check.sh') }}
+          # A miss starts from the last saved dependencies, not from nothing.
+          restore-keys: deps-v2-${{ runner.os }}-
+
+      - name: Doc references
+        run: scripts/check.sh docs
+
+      # On macOS only: the hooks run on the machines plugins are developed on, and their tests compare git's paths
+      # with the shell's, which Git Bash spells differently (D:/a/.. against /d/a/..).
+      - name: Hook and harness tests
+        if: runner.os == 'macOS'
+        timeout-minutes: 5
+        run: scripts/check.sh hooks
+
+      - name: Build
+        run: scripts/check.sh build
+
+      # A time limit of about twice a normal run, so a step that slows down fails and names itself
+      # (scripts/ci-timings.sh shows each step's time). Build has none: a cold compiler cache varies too much.
+      - name: plugkit-dsp tests
+        timeout-minutes: 8
+        run: scripts/check.sh test
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
