@@ -2,7 +2,7 @@
 
 The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split:
 
-- **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, and Placement.
+- **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, and LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread.
 - **`plugkit-ui`:** the JUCE layer. It holds the UI kit and the Plugin Shell's Presets, A/B Compare and edit history.
 
 The CI scripts and the check harness live here too.
