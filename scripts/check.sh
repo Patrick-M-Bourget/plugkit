@@ -240,10 +240,14 @@ hooks() {
 # Every colour in the editor comes from the UI kit's tokens (TOKENS_DIR's Tokens.h): a colour written as a
 # number (Colour (0xff..), Colour (255, ..), Colour (0.5f, ..), any case of 0x), made by a Colour:: factory
 # (fromRGB, fromFloatRGBA, fromString, greyLevel, ..), or a named juce::Colours one, belongs in TOKENS_DIR
-# only. The spellings caught are in scripts/colours.test.sh.
+# only. The spellings caught are in scripts/colours.test.sh. A library with no Plugin Shell (plugkit itself) leaves
+# PLUGIN_DIR out, and the check is skipped.
 colours() {
-    need PLUGIN_DIR
     step "Colours from tokens"
+    if [ -z "${PLUGIN_DIR:-}" ]; then
+        echo "Skipped the colours check: no PLUGIN_DIR, so no Plugin Shell to check"
+        return
+    fi
     local found tokens=${TOKENS_DIR:+${TOKENS_DIR%/}/}Tokens.h
     found=$(git ls-files -z -- "$PLUGIN_DIR" ${TOKENS_DIR:+":!$TOKENS_DIR"} |
         xargs -0 grep -HnE '(^|[^A-Za-z0-9_])Colour *[({] *[0-9.]|Colour::(from[A-Za-z]+|greyLevel) *\(|Colours::' || true)

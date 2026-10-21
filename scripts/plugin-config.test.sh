@@ -112,6 +112,10 @@ expect pass "" "colours allows literals in TOKENS_DIR" "$repo" colours
 echo 'g.setColour (juce::Colours::white);' > "$repo/shell/Editor.cpp"
 expect fail "shell/Editor.cpp:1:" "colours reads PLUGIN_DIR" "$repo" colours
 
+repo=$(plugin "${base[@]/PLUGIN_DIR=plugin/}")
+echo 'g.setColour (juce::Colours::white);' > "$repo/engine/Editor.cpp"
+expect pass "Skipped the colours check: no PLUGIN_DIR" "a library with no Plugin Shell leaves PLUGIN_DIR out, and docs skips colours, saying so" "$repo" docs
+
 repo=$(plugin "${base[@]}")
 expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says which" "$repo" validate
 
