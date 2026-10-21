@@ -139,4 +139,4 @@ The other stages run by hand from the plugin's root: `null <ref>`, `cpu <ref>`, 
 
 ### plugkit's own CI
 
-plugkit is a library, so `.github/workflows/ci.yml` runs only `docs`, `hooks` (on macOS, where the hooks run), and `build` and `test` of the placeholder target, using its own `plugkit.conf`. It runs on pushes to `main` and on pull requests to any branch.
+plugkit is a library, so `.github/workflows/ci.yml` runs only `docs`, `hooks` (on macOS, where the hooks run), and `build` and `test` of `plugkit-dsp` and its tests, using its own `plugkit.conf`. It runs on pushes to `main` and on pull requests to any branch.
