@@ -17,6 +17,7 @@ add_executable(plugkit_dsp_tests
     Double2Test.cpp
     LatestValueTest.cpp
     NoSubnormalsTest.cpp
+    OutputLevelTapTest.cpp
     ShapeResponseTest.cpp
     SmootherTest.cpp
     StereoPlacementTest.cpp
