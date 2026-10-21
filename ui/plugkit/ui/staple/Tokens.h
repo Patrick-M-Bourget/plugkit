@@ -6,7 +6,8 @@
 // two tokens plugkit-ui's Preset and A/B widgets read.
 
 // Staple's design tokens: the values in docs/staple-handoff/tokens.json and HANDOFF.md's visual spec,
-// kept by hand. The only place in plugkit-ui a colour is written as a number.
+// kept by hand. The only place in plugkit-ui a colour is written as a number. design-system/ beside this file
+// documents the system for eq1 and comp1: its README, tokens.json and the component guidelines.
 #include <juce_graphics/juce_graphics.h>
 
 namespace staple::tokens

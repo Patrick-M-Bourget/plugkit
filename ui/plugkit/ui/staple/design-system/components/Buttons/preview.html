@@ -1,0 +1,17 @@
+<!-- @dsCard group="Controls" height=170 subtitle="Icon, text, toggle chips, power on/off, segmented" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap">
+<div style="display:flex;flex-direction:column;gap:18px;padding:22px;background:var(--bg-0);font-family:Manrope,system-ui,sans-serif;color:var(--text-1)">
+<div style="display:flex;align-items:center;gap:10px">
+<button aria-label="Undo" style="width:30px;height:30px;padding:0;border:0;background:transparent;color:var(--text-3);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5 L2.5 6.5 L5.5 9.5"/><path d="M2.5 6.5 H10 a3.5 3.5 0 0 1 0 7 H7"/></svg></button>
+<button style="height:28px;padding:0 8px;border:0;border-radius:var(--r-2);background:transparent;font-size:13px;font-weight:600;color:var(--text-1)">A<span style="color:var(--text-4);font-weight:500">/B</span></button>
+<button style="height:28px;padding:0 8px;border:0;border-radius:var(--r-2);background:var(--fill-2);font-size:13px;color:var(--text-1)">Copy</button>
+<button style="height:28px;padding:0 12px;border:0;border-radius:var(--r-2);background:var(--fill-1);font-size:13px;color:var(--text-1)">Zero Latency</button>
+</div>
+<div style="display:flex;align-items:center;gap:10px">
+<button aria-pressed="true" style="height:22px;padding:0 8px;border:0;border-radius:var(--r-1);background:rgba(245,185,48,0.14);color:var(--curve-main);font-size:11px;font-weight:600">Comp Follow</button>
+<button aria-pressed="false" style="height:22px;padding:0 8px;border:0;border-radius:var(--r-1);background:var(--fill-1);color:var(--text-2);font-size:11px;font-weight:600">Auto Release</button>
+<button aria-label="Gate on" aria-pressed="true" style="width:24px;height:24px;padding:0;border:0;border-radius:var(--r-1);background:transparent;color:var(--text-3);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M7 1.5 V6.5"/><path d="M3.8 3.6 a4.6 4.6 0 1 0 6.4 0"/></svg></button>
+<button aria-label="Gate off" aria-pressed="false" style="width:24px;height:24px;padding:0;border:0;border-radius:var(--r-1);background:var(--state-off-bg);color:var(--state-off);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M7 1.5 V6.5"/><path d="M3.8 3.6 a4.6 4.6 0 1 0 6.4 0"/></svg></button>
+<div role="radiogroup" aria-label="Saturation Position" style="display:flex;padding:2px;border-radius:var(--r-2);background:var(--meter-track)"><button role="radio" aria-checked="false" style="height:22px;padding:0 9px;border:0;border-radius:var(--r-1);background:transparent;color:var(--text-3);font-size:11px">Before</button><button role="radio" aria-checked="true" style="height:22px;padding:0 9px;border:0;border-radius:var(--r-1);background:var(--fill-2);color:var(--text-1);font-size:11px">After</button></div>
+</div>
+</div>
