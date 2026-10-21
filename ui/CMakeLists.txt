@@ -18,6 +18,17 @@ if(NOT TARGET juce::juce_gui_basics)
     FetchContent_MakeAvailable(JUCE)
 endif()
 
+# Staple's one font, Manrope (SIL Open Font License 1.1, assets/fonts/OFL.txt), bundled so the editor never falls
+# back to a system font. As eq1's plugin/CMakeLists.txt, under plugkit's name.
+juce_add_binary_data(plugkit-ui-fonts
+    NAMESPACE StapleFonts
+    HEADER_NAME StapleFonts.h
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/manrope-regular.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/manrope-medium.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/manrope-semibold.ttf
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/manrope-bold.ttf)
+
 # An interface library, as JUCE's modules are: its sources compile into each target that links it, with that
 # target's JUCE configuration, so a plugin links one copy of JUCE and of plugkit-ui. Link it from one target per
 # executable (the plugin's). One source per line, sorted.
@@ -25,7 +36,16 @@ add_library(plugkit-ui INTERFACE)
 add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Fonts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Icons.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/LookAndFeel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Painting.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/TooltipWindow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/WindowBackground.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Overlay.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Tween.cpp
 )
 target_include_directories(plugkit-ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(plugkit-ui INTERFACE cxx_std_20)
-target_link_libraries(plugkit-ui INTERFACE juce::juce_gui_basics juce::juce_audio_processors)
+target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts juce::juce_gui_basics juce::juce_audio_processors)

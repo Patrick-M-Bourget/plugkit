@@ -33,11 +33,14 @@ add_test(NAME dsp_has_no_juce
 # plugkit-ui's tests, in a plain executable compiling JUCE and plugkit-ui as a plugin's tests do. One source per line,
 # as above.
 add_executable(plugkit_plugin_tests
+    ui/StapleTest.cpp
     ui/ValueTextTest.cpp
 )
-target_compile_definitions(plugkit_plugin_tests PRIVATE JUCE_STANDALONE_APPLICATION=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_compile_definitions(plugkit_plugin_tests PRIVATE
+    JUCE_STANDALONE_APPLICATION=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 PLUGKIT_HARNESS_VAR_PREFIX="PLUGKIT_")
 target_link_libraries(plugkit_plugin_tests PRIVATE
     plugkit::ui
+    plugkit::editor_harness
     Catch2::Catch2WithMain
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
