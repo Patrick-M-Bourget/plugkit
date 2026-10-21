@@ -1,10 +1,11 @@
 # plugkit
 
-The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split, and a test-only target:
+The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split, and two test-only targets:
 
 - **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, and LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread.
 - **`plugkit::test_support`:** for a plugin's test executables only, so `plugkit-dsp` stays free of it. It holds AllocationGuard (`plugkit/test/AllocationGuard.h`), which counts the heap allocations its thread makes while it is alive, and the bytes they hold, for realtime-safety and footprint tests. Linking it, `target_link_libraries(<name>_engine_tests PRIVATE plugkit::test_support)`, replaces operator new and delete in that executable.
-- **`plugkit-ui`:** the JUCE layer. It holds the UI kit and the Plugin Shell's Presets, A/B Compare and edit history.
+- **`plugkit-ui`** (`plugkit::ui`): the JUCE layer. It holds Staple, eq1's UI kit (namespace `staple`: tokens, the Manrope font, icons, the LookAndFeel and the controls), and in namespace `plugkit::ui` KeyboardSlider, `accessibility::spokenValue`, ValueText, `showMenu` and EditorTick, the editor's one tick. The meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) and the Plugin Shell's session state ([comp1#37](https://github.com/Patrick-M-Bourget/comp1/issues/37)) come next. See "Linking plugkit-ui".
+- **`plugkit::editor_harness`:** eq1's editor test harness (`plugkit/test/EditorHarness.h`, namespace `harness`), for a plugin's editor tests. See "Linking plugkit-ui".
 
 The CI scripts and the check harness live here too.
 
@@ -15,7 +16,21 @@ The CI scripts and the check harness live here too.
 - **Grown in slices**, each just before comp1 needs it:
   1. CI and the check harness ([comp1#2](https://github.com/Patrick-M-Bourget/comp1/issues/2)).
   2. `plugkit-dsp` ([comp1#5](https://github.com/Patrick-M-Bourget/comp1/issues/5)).
-  3. `plugkit-ui` ([comp1#22](https://github.com/Patrick-M-Bourget/comp1/issues/22)).
+  3. `plugkit-ui`: its foundation ([comp1#22](https://github.com/Patrick-M-Bourget/comp1/issues/22)), the meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) and session state ([comp1#37](https://github.com/Patrick-M-Bourget/comp1/issues/37)).
+
+## Linking plugkit-ui
+
+- **JUCE is the plugin's.** Each plugin pins JUCE, and fetches it before plugkit: `plugkit-ui` links the `juce::` targets that already exist, and never fetches JUCE itself when they do. Fetched by a project without them (an Engine-only build), plugkit defines no `plugkit::ui` and says so. plugkit's own build fetches JUCE 9.0.3, the version eq1 and comp1 pin, to build and test it.
+- **One target compiles it.** `plugkit::ui` is an interface library, as JUCE's modules are: its sources compile into the target that links it, with that target's JUCE settings. The plugin links it from its plugin target (`target_link_libraries(<name> PRIVATE plugkit::ui)`), and only there, or the executable that links that target gets plugkit-ui twice.
+- **The editor harness:** a test executable links `plugkit::editor_harness`, which brings the harness and plugkit-ui's headers, not its sources, and defines `PLUGKIT_HARNESS_VAR_PREFIX` as the plugin's `VAR_PREFIX`, so `check.sh screens` reaches `harness::writeSnapshot` through `<prefix>SCREENS`:
+
+  ```cmake
+  target_link_libraries(<name>_plugin_tests PRIVATE <name> plugkit::editor_harness Catch2::Catch2WithMain)
+  target_compile_definitions(<name>_plugin_tests PRIVATE PLUGKIT_HARNESS_VAR_PREFIX="COMP1_")
+  ```
+
+  `harness::OpenEditor<Processor>` opens the plugin's editor in a window of its own; a plugin's subclass of it adds helpers for its own displays. The editor must be an `EditorTick::Host`. The harness lives in plugkit's checkout, not the plugin's tests, so a plugin's `plugkit.conf` leaves `EDITOR_HARNESS` out.
+- **Tokens:** Staple's tokens are the kit's (`plugkit/ui/staple/Tokens.h`). A plugin's own colours and sizes live in its own tokens header, which its `TOKENS_DIR` names.
 
 ## The check harness
 
@@ -160,4 +175,4 @@ The other stages run by hand from the plugin's root: `null <ref>`, `cpu <ref>`, 
 
 ### plugkit's own CI
 
-plugkit is a library, so `.github/workflows/ci.yml` runs only `docs`, `hooks` (on macOS, where the hooks run), and `build` and `test` of `plugkit-dsp` and its tests, using its own `plugkit.conf`. It runs on pushes to `main` and on pull requests to any branch.
+plugkit is a library, so `.github/workflows/ci.yml` runs only `docs`, `hooks` (on macOS, where the hooks run), and `build` and `test` of `plugkit-dsp`, `plugkit-ui` and their tests, using its own `plugkit.conf`. It runs on pushes to `main` and on pull requests to any branch.
