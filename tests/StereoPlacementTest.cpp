@@ -1,6 +1,8 @@
 // Rewritten from eq1's tests/engine/StereoPlacementTest.cpp (eq1 at dbb1127), which drives eq1's Engine, against
-// Placement's routing and Mid/Side encode and decode directly: the same signals and tolerances. Listed in eq1#231.
+// Placement's routing and Mid/Side encode and decode through the tests' Band model (BandModel.h): the same signals and
+// tolerances. Listed in eq1#231.
 
+#include "BandModel.h"
 #include "Measure.h"
 
 #include "plugkit/Placement.h"
@@ -9,8 +11,11 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
 
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <random>
 #include <vector>
 
@@ -31,51 +36,21 @@ std::vector<float> noise (unsigned seed)
     return samples;
 }
 
-// eq1's tests' Band: a Bell at 1 kHz, +12 dB, Q 1.
-const Cascade& bell()
-{
-    static const Cascade cascade = designBand (test::bellBand (1000.0, 12.0, 1.0), sampleRate);
-    return cascade;
-}
-
-// Filters samples in place through the Bell, from a clear state.
-void filter (std::vector<float>& samples)
-{
-    std::array<BiquadState, maxSections> states {};
-    test::runCascade (bell(), states, samples);
-}
-
-// Processes signal in place by placement, as eq1's Band places its filter (Band::Chain::runPlaced and runMidSide):
-// each channel routePlacement selects is filtered as it is; a Mid or Side part is encoded, filtered and decoded.
+// Processes signal in place through a Band placed by placement, with as many channels as signal has: eq1's tests'
+// Band, a Bell at 1 kHz, +12 dB, Q 1.
 void process (StereoPlacement placement, std::vector<std::vector<float>>& signal)
 {
-    routePlacement (
-        placement,
-        static_cast<int> (signal.size()),
-        [&] (int, int ch) { filter (signal[static_cast<size_t> (ch)]); },
-        [&] (bool mid) {
-            auto& left = signal[0];
-            auto& right = signal[1];
-            std::vector<float> midSamples (left.size()), sideSamples (left.size());
-            for (size_t i = 0; i < left.size(); ++i)
-            {
-                midSamples[i] = encodeMid (left[i], right[i]);
-                sideSamples[i] = encodeSide (left[i], right[i]);
-            }
-            filter (mid ? midSamples : sideSamples);
-            for (size_t i = 0; i < left.size(); ++i)
-            {
-                left[i] = decodeLeft (midSamples[i], sideSamples[i]);
-                right[i] = decodeRight (midSamples[i], sideSamples[i]);
-            }
-        });
+    test::BandModel band (sampleRate, static_cast<int> (signal.size()), placement);
+    band.setShape (test::bellBand (1000.0, 12.0, 1.0));
+    band.process (signal);
 }
 
 // What a Stereo Band does to one channel on its own: the reference for every Placement.
 std::vector<float> filtered (std::vector<float> samples)
 {
-    filter (samples);
-    return samples;
+    std::vector<std::vector<float>> mono { std::move (samples) };
+    process (StereoPlacement::Stereo, mono);
+    return mono[0];
 }
 
 void checkClose (const std::vector<float>& actual, const std::vector<float>& expected, float tolerance)
@@ -150,6 +125,61 @@ TEST_CASE ("On a mono track, a Side Band has no effect and every other Stereo Pl
         REQUIRE (signal[0] == input);
     else
         checkClose (signal[0], filtered (input), 1.0e-6f);
+}
+
+namespace
+{
+// Processes signal in place through bands, with each band's shape changed to changed a quarter of the way in, so
+// Frequency, Gain and Q glide. Each band runs over the whole stretch in turn: bands placed on different channels
+// don't hear each other, so the order doesn't change what they do.
+void processWithGlide (std::vector<test::BandModel>& bands, const BandShape& changed, std::vector<std::vector<float>>& signal)
+{
+    constexpr size_t quarter = length / 4;
+    for (auto& band : bands)
+        band.process (signal, 0, quarter);
+    for (auto& band : bands)
+    {
+        band.setShape (changed);
+        band.process (signal, quarter, length - quarter);
+    }
+}
+
+std::vector<std::uint32_t> bitsOf (const std::vector<float>& samples)
+{
+    std::vector<std::uint32_t> bits (samples.size());
+    std::transform (samples.begin(), samples.end(), bits.begin(), [] (float s) { return std::bit_cast<std::uint32_t> (s); });
+    return bits;
+}
+} // namespace
+
+TEST_CASE ("A Stereo Band on a stereo track sounds bit for bit as a Left and a Right Band with its settings, every Shape, gliding")
+{
+    // The Stereo Band runs both channels in one loop, a lane each; a Left or Right Band runs one channel
+    // on its own. Each lane must round exactly as the single channel does.
+    const auto shape = GENERATE (from_range (test::allShapes));
+    const bool brickwall = GENERATE (false, true);
+    if (brickwall && ! isCut (shape))
+        return;
+    CAPTURE (static_cast<int> (shape), brickwall);
+
+    const auto band = [&] (double frequency, double gainDb, double q) {
+        return BandShape { .shape = shape, .slope = 24.0, .brickwall = brickwall, .gain = gainDb, .frequency = frequency, .q = q };
+    };
+    std::vector<test::BandModel> stereo { test::BandModel (sampleRate, 2, StereoPlacement::Stereo) };
+    std::vector<test::BandModel> split { test::BandModel (sampleRate, 2, StereoPlacement::Left),
+                                         test::BandModel (sampleRate, 2, StereoPlacement::Right) };
+    for (auto* bands : { &stereo, &split })
+        for (auto& b : *bands)
+            b.setShape (band (1000.0, 12.0, 1.0));
+
+    const auto left = noise (1), right = noise (2);
+    std::vector<std::vector<float>> stereoSignal { left, right }, splitSignal { left, right };
+    processWithGlide (stereo, band (1500.0, 6.0, 2.0), stereoSignal);
+    processWithGlide (split, band (1500.0, 6.0, 2.0), splitSignal);
+
+    REQUIRE (stereoSignal[0] != left); // the Band did something
+    REQUIRE (bitsOf (stereoSignal[0]) == bitsOf (splitSignal[0]));
+    REQUIRE (bitsOf (stereoSignal[1]) == bitsOf (splitSignal[1]));
 }
 
 TEST_CASE ("A placed part plays back on the channels it came from, decoded on its own")
