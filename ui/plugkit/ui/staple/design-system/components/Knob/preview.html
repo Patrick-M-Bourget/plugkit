@@ -1,0 +1,17 @@
+<!-- @dsCard group="Controls" height=210 subtitle="Large, medium and small; plain, Detection Level ring, Gain Reduction ring" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap">
+<div id="root" style="display:flex;align-items:flex-end;gap:28px;padding:24px;background:var(--bg-0);font-family:Manrope,system-ui,sans-serif;font-variant-numeric:tabular-nums"></div>
+<script>
+const r1=v=>Math.round(v*10)/10, pt=(c,R,a)=>{const t=a*Math.PI/180;return r1(c+R*Math.sin(t))+' '+r1(c-R*Math.cos(t))};
+const arc=(c,R,a0,a1)=>{if(Math.abs(a1-a0)<.5)a1=a0+.5;const lo=Math.min(a0,a1),hi=Math.max(a0,a1);return 'M'+pt(c,R,lo)+' A'+R+' '+R+' 0 '+(hi-lo>180?1:0)+' 1 '+pt(c,R,hi)};
+function knob(label,t,d,o){o=o||{};const c=d/2,R=c-Math.max(4.5,Math.round(d*.1)),a0=o.bipolar?0:-135,a=-135+270*t;
+ const ring=o.ring!==undefined,box=ring?d+44:d,off=ring?22:0,cb=box/2,RR=c+10,col=o.color||'var(--curve-main)';
+ return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="position:relative;width:'+box+'px;height:'+box+'px">'
+ +(ring?'<svg width="'+box+'" height="'+box+'" style="position:absolute;inset:0;overflow:visible" aria-hidden="true"><path d="'+arc(cb,RR,-135,135)+'" style="fill:none;stroke:var(--knob-ring-lane);stroke-width:12"/><path d="'+arc(cb,RR,-135,-135+270*o.ring)+'" style="fill:none;stroke:'+o.ringColor+';stroke-opacity:.85;stroke-width:12"/></svg>':'')
+ +'<button aria-label="'+label+'" style="position:absolute;left:'+off+'px;top:'+off+'px;width:'+d+'px;height:'+d+'px;padding:0;border:0;border-radius:50%;background:transparent">'
+ +'<span style="position:absolute;inset:1px;border-radius:50%;background:radial-gradient(120% 120% at 50% 12%,var(--knob-face-top) 0%,var(--knob-face-mid) 45%,var(--knob-face-edge) 100%);border:'+(d<=30?1.5:2)+'px solid var(--knob-rim);box-shadow:0 6px 14px rgba(0,0,0,.4)"></span>'
+ +'<svg width="'+d+'" height="'+d+'" style="position:absolute;inset:0;overflow:visible" aria-hidden="true"><path d="'+arc(c,R,a0,a)+'" style="fill:none;stroke:'+col+';stroke-width:'+(d<40?2:3)+';stroke-linecap:round"/></svg></button></div>'
+ +'<span style="font-size:12px;font-weight:500;color:var(--text-2)">'+label+'</span></div>';}
+document.getElementById('root').innerHTML=
+ knob('Threshold',.7,66,{ring:.62,ringColor:'var(--an-sc)'})+knob('Gain',.68,66,{bipolar:true})+knob('Ratio',.45,50)+knob('Attack',.3,50)+knob('Knee',.1,30)+knob('Ceiling',.97,50,{ring:.15,ringColor:'var(--dyn-range)'})+knob('Frequency',.5,50,{color:'var(--band-02)'});
+</script>

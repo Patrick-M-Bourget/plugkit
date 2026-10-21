@@ -1,0 +1,34 @@
+<!-- @dsCard height=288 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&display=swap">
+<style>
+.cv{position:relative;width:960px;height:288px;background:var(--bg-0);overflow:hidden;font-family:Manrope,system-ui,sans-serif}
+.cv svg{position:absolute;left:0;top:0}
+.amber{fill:var(--curve-main)} .teal{fill:var(--an-sc)} .red{fill:var(--dyn-range)} .green{fill:var(--meter-1)} .face{fill:var(--knob-face-mid)}
+.slab{rx:var(--r-3)} .chip{rx:var(--r-2)}
+.arc-ground{fill:none;stroke:var(--bg-0);stroke-linecap:round}
+.arc-amber{fill:none;stroke:var(--curve-main);stroke-linecap:round}
+.lane{fill:none;stroke:var(--knob-ring-lane)}
+.name{position:absolute;left:40px;bottom:58px;margin:0;font-size:120px;line-height:.92;font-weight:700;letter-spacing:-.02em;color:var(--text-1)}
+.tag{position:absolute;left:44px;bottom:30px;margin:0;font-size:14px;font-weight:500;color:var(--text-3);max-width:420px}
+</style>
+<div class="cv">
+<!--
+blocks: curve-main 200x300 slab (r-3, bleeds top/bottom) · an-sc 130x150 slab (r-3) · dyn-range 60x80 (r-2) · meter-1 60x56 (r-2) · knob-face-mid disc 132
+arrangement: one tall amber slab with satellites, right of x=480, bleeding off the top and bottom like the display's dissolving edges
+pattern: literal motif, the Staple knob: 270-degree value arcs (round caps, no track) cut from the amber slab in the ground, plus one knob face carrying a ring lane and an amber arc; chosen because the knob is the family's signature control
+scales: radii r-2 6px and r-3 10px; arc strokes 12px (ring-lane) and 6px; gaps 14px (space-window)
+-->
+<svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+<rect class="amber slab" x="520" y="-12" width="200" height="312"></rect>
+<path class="arc-ground" stroke-width="12" d="M 566.4 196.6 A 56 56 0 1 1 673.6 196.6"></path>
+<path class="arc-ground" stroke-width="6" d="M 591.5 171.5 A 30 30 0 1 1 648.5 171.5"></path>
+<rect class="teal slab" x="734" y="-10" width="130" height="150"></rect>
+<rect class="red chip" x="878" y="0" width="60" height="80"></rect>
+<rect class="green chip" x="878" y="94" width="60" height="56"></rect>
+<circle class="face" cx="830" cy="226" r="46"></circle>
+<path class="lane" stroke-width="12" d="M 774.9 281.1 A 78 78 0 1 1 885.1 281.1"></path>
+<path class="arc-amber" stroke-width="5" d="M 802.4 253.6 A 39 39 0 1 1 857.6 198.4"></path>
+</svg>
+<h1 class="name">Staple</h1>
+<p class="tag">One interface for eq1 and comp1.</p>
+</div>
