@@ -1,9 +1,10 @@
 // Copied from eq1's tests/plugin/DisplayLayersTest.cpp (eq1 at dbb1127), against plugkit::ui::display: its grid and
 // edge-fade cases, with eq1's narrow display width and fade distances passed in, which plugkit's layers take as
-// arguments, and a case on paintGrid's overload for any GridLines. Its Band curve cases, on eq1's CurvesLayer, stay
-// in eq1.
+// arguments, a case on paintGrid's overload for any GridLines, and one on spectrumYAt. Its Band curve cases, on eq1's
+// CurvesLayer, stay in eq1.
 
 #include "plugkit/test/EditorHarness.h"
+#include "plugkit/ui/display/AnalyzerLayer.h"
 #include "plugkit/ui/display/EdgeFadeLayer.h"
 #include "plugkit/ui/display/GridLayer.h"
 #include "plugkit/ui/staple/Tokens.h"
@@ -13,6 +14,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <numbers>
 #include <vector>
 
 using Catch::Matchers::WithinAbs;
@@ -250,4 +253,30 @@ TEST_CASE ("The display's edge fades are drawn back pixel for pixel at a UI Scal
                 CHECK (std::abs (drawn.getBlue() - expected.getBlue()) <= 1);
             }
     }
+}
+
+TEST_CASE ("A spectrum is drawn on the Analyzer's scale: 0 dB at the top, its range below at the bottom, with Analyzer Tilt")
+{
+    const DisplayGeometry geometry { .width = 1134, .height = 612 };
+    plugkit::ui::AnalyzerSettings settings;
+    settings.rangeDb = 60;
+    settings.tiltDbPerOctave = 0.0;
+    plugkit::ui::AnalyzerSpectrum spectrum;
+    spectrum.prepare (48000.0, plugkit::ui::AnalyzerResolution::high);
+    // Silent: the bottom, and nothing lower.
+    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, 500.0f), WithinAbs (612.0, 1.0e-3));
+
+    // A full-scale sine, on an FFT bin so it reads its full level: at the top over its Frequency.
+    const double frequency = 128.0 * 48000.0 / plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high);
+    std::vector<float> block (static_cast<size_t> (plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high)));
+    for (size_t i = 0; i < block.size(); ++i)
+        block[i] = static_cast<float> (std::sin (2.0 * std::numbers::pi * frequency * static_cast<double> (i) / 48000.0));
+    spectrum.push (block.data(), static_cast<int> (block.size()));
+    spectrum.update (10.0, plugkit::ui::AnalyzerSpeed::veryFast);
+    const float x = geometry.xOf (frequency);
+    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, x), WithinAbs (0.0, 0.5));
+
+    // Tilted to 30 dB down over its Frequency, below 1 kHz: half-way down.
+    settings.tiltDbPerOctave = -30.0 / std::log2 (frequency / 1000.0);
+    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, x), WithinAbs (306.0, 0.5));
 }
