@@ -15,7 +15,7 @@ The CI scripts and the check harness live here too.
 
 ## Rules
 
-- **Copied from eq1 until eq1 ships.** eq1 doesn't change before then, so everything here is a copy of its code. Each copied piece, and every eq1 fix ported by hand, is listed in [eq1#231](https://github.com/Patrick-M-Bourget/eq1/issues/231), the ticket that later migrates eq1 onto plugkit. See comp1's ADR 0006.
+- **Copied from eq1 until eq1 ships.** eq1 doesn't change before then, so everything here is a copy of its code. Each copied file names its eq1 source in a "Copied from eq1's <path> (eq1 at dbb1127)" header, and every eq1 fix ported by hand says so in its commit. [eq1#231](https://github.com/Patrick-M-Bourget/eq1/issues/231), the ticket that later migrates eq1 onto plugkit, builds its table from those. See comp1's ADR 0006.
 - **Pinned per plugin.** Each plugin pins an exact plugkit tag or commit through FetchContent, never a branch. Bumping the pin is that plugin's own PR, through its full checks. See comp1's ADR 0007.
 - **Grown in slices**, each just before comp1 needs it:
   1. CI and the check harness ([comp1#2](https://github.com/Patrick-M-Bourget/comp1/issues/2)).
