@@ -1,0 +1,205 @@
+// Copied from eq1's engine/src/MatchedDesign.cpp (eq1 at dbb1127); listed in eq1#231.
+
+#include "plugkit/MatchedDesign.h"
+
+#include "plugkit/SquaredMagnitude.h"
+
+#include <algorithm>
+#include <cmath>
+#include <complex>
+#include <numbers>
+
+namespace plugkit
+{
+
+namespace
+{
+
+// The positive-root, minimum-phase factorisation back to polynomial coefficients. A cut is the
+// inverse of a boost, so these roots may become poles: they are kept inside the unit circle.
+void factor (const SquaredMagnitude& m, double& c0, double& c1, double& c2)
+{
+    const double root0 = std::sqrt (std::max (m.p0, 0.0));
+    const double root1 = std::sqrt (std::max (m.p1, 0.0));
+    const double w = 0.5 * (root0 + root1);
+    c0 = 0.5 * (w + std::sqrt (std::max (w * w + m.p2, 0.0)));
+    c1 = 0.5 * (root0 - root1);
+    c2 = -m.p2 / (4.0 * c0);
+
+    // Near and above Nyquist the target can be out of a biquad's reach and the roots land outside
+    // the unit circle; reflecting them inside (swapping c0 and c2) keeps the magnitude unchanged.
+    if (std::abs (c2) > c0)
+        std::swap (c0, c2);
+}
+
+// Above ~0.98 Nyquist the matched poles fold back; they, and the match points, are held just below it.
+double digitalFrequency (double frequency, double sampleRate)
+{
+    return std::min (2.0 * std::numbers::pi * frequency / sampleRate, 0.98 * std::numbers::pi);
+}
+
+// The matched poles, each as its log radius and angle: their squared magnitude on the unit circle,
+// |1 - p e^(-iw)|^2 = (1 - r)^2 + 4 r sin^2((w - angle) / 2) per pole, read from them doesn't cancel when
+// they sit near z = 1, as the denominator's phi form does.
+struct MatchedPoles
+{
+    int count = 0;
+    double logRadius[2] {}, angle[2] {};
+
+    double squaredAt (double w) const
+    {
+        double squared = 1.0;
+        for (int i = 0; i < count; ++i)
+        {
+            const double s = std::sin (0.5 * (w - angle[i]));
+            squared *= std::expm1 (logRadius[i]) * std::expm1 (logRadius[i]) + 4.0 * std::exp (logRadius[i]) * s * s;
+        }
+        return squared;
+    }
+};
+
+// Poles: the analog roots, scaled to the digital frequency w of the reference and mapped by z = e^(sT).
+MatchedPoles matchPoles (const AnalogSection& section, double w, BiquadCoefficients& c)
+{
+    if (section.d2 == 0.0)
+    {
+        c.a1 = -std::exp (-section.d0 / section.d1 * w);
+        return { 1, { -section.d0 / section.d1 * w, 0.0 }, { 0.0, 0.0 } };
+    }
+    const double disc = section.d1 * section.d1 - 4.0 * section.d2 * section.d0;
+    const double re = -section.d1 / (2.0 * section.d2) * w;
+    if (disc < 0.0)
+    {
+        const double im = std::sqrt (-disc) / (2.0 * section.d2) * w;
+        c.a1 = -2.0 * std::exp (re) * std::cos (im);
+        c.a2 = std::exp (2.0 * re);
+        return { 2, { re, re }, { im, -im } };
+    }
+    const double spread = std::sqrt (disc) / (2.0 * section.d2) * w;
+    c.a1 = -(std::exp (re + spread) + std::exp (re - spread));
+    c.a2 = std::exp (2.0 * re);
+    return { 2, { re + spread, re - spread }, { 0.0, 0.0 } };
+}
+
+// The numerator whose squared magnitude, over the poles c holds, is squaredAtDc at DC, squaredAtMatch
+// at the digital frequency wMatch and squaredAtNyquist at Nyquist. At Nyquist the phi form doesn't
+// cancel, so it reads the coefficients there.
+void fitNumerator (BiquadCoefficients& c,
+                   const MatchedPoles& poles,
+                   double wMatch,
+                   double squaredAtDc,
+                   double squaredAtMatch,
+                   double squaredAtNyquist)
+{
+    const Phi atMatch (wMatch);
+    SquaredMagnitude num;
+    num.p0 = poles.squaredAt (0.0) * squaredAtDc;
+    num.p1 = SquaredMagnitude (1.0, c.a1, c.a2).p1 * squaredAtNyquist;
+    num.p2 = (poles.squaredAt (wMatch) * squaredAtMatch - num.p0 * atMatch.phi0 - num.p1 * atMatch.phi1) / atMatch.phi2;
+    factor (num, c.b0, c.b1, c.b2);
+}
+
+} // namespace
+
+double analogSquared (const AnalogSection& a, double normalisedFrequency)
+{
+    const std::complex<double> s { 0.0, normalisedFrequency };
+    return std::norm ((a.n2 * s * s + a.n1 * s + a.n0) / (a.d2 * s * s + a.d1 * s + a.d0));
+}
+
+BiquadCoefficients matchSection (const AnalogSection& section, double referenceFrequency, double sampleRate)
+{
+    return matchSection (section, referenceFrequency, sampleRate, referenceFrequency);
+}
+
+BiquadCoefficients matchSection (const AnalogSection& section, double referenceFrequency, double sampleRate, double matchFrequency)
+{
+    const double w = digitalFrequency (referenceFrequency, sampleRate);
+    const double nyquist = 0.5 * sampleRate / referenceFrequency;
+
+    BiquadCoefficients c;
+    const auto poles = matchPoles (section, w, c);
+    const SquaredMagnitude den (1.0, c.a1, c.a2);
+    if (section.d2 == 0.0)
+    {
+        const double root0 = std::sqrt (den.p0 * analogSquared (section, 0.0));
+        const double root1 = std::sqrt (den.p1 * analogSquared (section, nyquist));
+        c.b0 = 0.5 * (root0 + root1);
+        c.b1 = 0.5 * (root0 - root1);
+        return c;
+    }
+
+    const double wMatch = digitalFrequency (matchFrequency, sampleRate);
+    fitNumerator (c,
+                  poles,
+                  wMatch,
+                  analogSquared (section, 0.0),
+                  analogSquared (section, wMatch / (2.0 * std::numbers::pi) * sampleRate / referenceFrequency),
+                  analogSquared (section, nyquist));
+    return c;
+}
+
+BiquadCoefficients matchMagnitudes (const AnalogSection& poles,
+                                    double referenceFrequency,
+                                    double sampleRate,
+                                    double matchFrequency,
+                                    double squaredAtDc,
+                                    double squaredAtMatch,
+                                    double squaredAtNyquist)
+{
+    BiquadCoefficients c;
+    const auto matched = matchPoles (poles, digitalFrequency (referenceFrequency, sampleRate), c);
+    fitNumerator (c, matched, digitalFrequency (matchFrequency, sampleRate), squaredAtDc, squaredAtMatch, squaredAtNyquist);
+    return c;
+}
+
+// The three-point match can't place two zeros exactly at DC, so a high-pass section fixes them
+// there, (1 - z^-1)^2 or (1 - z^-1), and scales to the analog magnitude at the reference.
+BiquadCoefficients matchHighPass (const AnalogSection& section, double referenceFrequency, double sampleRate, HighPassGain gain)
+{
+    const double w = digitalFrequency (referenceFrequency, sampleRate);
+
+    BiquadCoefficients c;
+    matchPoles (section, w, c);
+    c.b0 = 1.0;
+    c.b1 = section.d2 == 0.0 ? -1.0 : -2.0;
+    c.b2 = section.d2 == 0.0 ? 0.0 : 1.0;
+
+    const Phi atReference (w);
+    const double digitalSquared = SquaredMagnitude (c.b0, c.b1, c.b2).at (atReference) / SquaredMagnitude (1.0, c.a1, c.a2).at (atReference);
+    double k = std::sqrt (analogSquared (section, w / (2.0 * std::numbers::pi) * sampleRate / referenceFrequency) / digitalSquared);
+    if (gain == HighPassGain::betweenReferenceAndNyquist)
+    {
+        const double digitalAtNyquist = SquaredMagnitude (c.b0, c.b1, c.b2).p1 / SquaredMagnitude (1.0, c.a1, c.a2).p1;
+        k = std::sqrt (k * std::sqrt (analogSquared (section, 0.5 * sampleRate / referenceFrequency) / digitalAtNyquist));
+    }
+    c.b0 *= k;
+    c.b1 *= k;
+    c.b2 *= k;
+    return c;
+}
+
+// The three-point match can't place a zero exactly on the unit circle, so a notch section fixes its
+// zeros at zeroFrequency and scales to the analog magnitude at DC.
+BiquadCoefficients matchNotch (const AnalogSection& section, double referenceFrequency, double sampleRate, double zeroFrequency)
+{
+    BiquadCoefficients c;
+    matchPoles (section, digitalFrequency (referenceFrequency, sampleRate), c);
+    c.b0 = 1.0;
+    c.b1 = -2.0 * std::cos (digitalFrequency (zeroFrequency, sampleRate));
+    c.b2 = 1.0;
+
+    const double k = std::sqrt (analogSquared (section, 0.0) * SquaredMagnitude (1.0, c.a1, c.a2).p0 / SquaredMagnitude (c.b0, c.b1, c.b2).p0);
+    c.b0 *= k;
+    c.b1 *= k;
+    c.b2 *= k;
+    return c;
+}
+
+BiquadCoefficients inverse (const BiquadCoefficients& c)
+{
+    const double g = 1.0 / c.b0;
+    return { g, c.a1 * g, c.a2 * g, c.b1 * g, c.b2 * g };
+}
+
+} // namespace plugkit

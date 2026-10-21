@@ -11,6 +11,8 @@ include(Catch)
 
 # One source per line, sorted, so tickets adding tests in parallel merge cleanly.
 add_executable(plugkit_dsp_tests
+    BellResponseTest.cpp
+    BellStabilityTest.cpp
     SmootherTest.cpp
 )
 target_link_libraries(plugkit_dsp_tests PRIVATE plugkit::dsp Catch2::Catch2WithMain)
