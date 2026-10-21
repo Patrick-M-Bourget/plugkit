@@ -2,20 +2,22 @@
 
 The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split, and two test-only targets:
 
-- **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, and LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread.
+- **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread, and OutputLevel, a channel's peak and RMS in dBFS for the Output Meter.
 - **`plugkit::test_support`:** for a plugin's test executables only, so `plugkit-dsp` stays free of it. It holds AllocationGuard (`plugkit/test/AllocationGuard.h`), which counts the heap allocations its thread makes while it is alive, and the bytes they hold, for realtime-safety and footprint tests. Linking it, `target_link_libraries(<name>_engine_tests PRIVATE plugkit::test_support)`, replaces operator new and delete in that executable.
 - **`plugkit-ui`** (`plugkit::ui`): the JUCE layer. It holds Staple, eq1's UI kit (namespace `staple`: tokens, the Manrope font, icons, the LookAndFeel and the controls), and in namespace `plugkit::ui`:
-  - KeyboardSlider, KeyboardControl (the editor-wide keys), `accessibility::spokenValue`, ValueText, `showMenu` and EditorTick, the editor's one tick;
-  - the Plugin Shell's session state, `Session`: the undo history (EditHistory), A/B Compare, the Preset Library and the window's size and UI Scale, with the rules for saving and restoring them, and the widgets that drive it (PresetBar and its PresetBrowser, CompareGroup's Undo, Redo, A/B Compare and Copy, and UiScaleMenu). See "Session state".
+  - KeyboardSlider, KeyboardControl (the editor-wide keys), `accessibility::spokenValue`, ValueText, `showMenu` and EditorTick, the editor's one tick.
+  - **The Analyzer:** AnalyzerSpectrum (FFT, smoothing, Peak Hold, Tilt), and in `plugkit::ui::display` the display geometry, the Frequency grid and its labels, any grid's lines (`paintGrid (g, lines, size)`), the edge fades and the Analyzer layer. Each display passes its own Frequency range, narrow width and fade distances.
+  - **The Output Meter:** OutputMeter, ClipLights and the meter ballistics. The meter reads an `OutputLevelSource`, which the plugin's processor implements: `readOutputLevel` returns its Engine's OutputLevel through a `ClipLights` member's `note`, which lights a channel's Clip Light on a peak above 0 dBFS, and `isClipLit` and `clearClipLights` ask that member. The processor clears the Clip Lights when it restores a session.
+  - **The session state:** `Session`, the Plugin Shell's undo history (EditHistory), A/B Compare, Preset Library and window size and UI Scale, with the rules for saving and restoring them, and the widgets that drive it (PresetBar and its PresetBrowser, CompareGroup's Undo, Redo, A/B Compare and Copy, and UiScaleMenu). See "Session state".
 
-  The meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) come next. See "Linking plugkit-ui".
+  See "Linking plugkit-ui".
 - **`plugkit::editor_harness`:** eq1's editor test harness (`plugkit/test/EditorHarness.h`, namespace `harness`), for a plugin's editor tests. See "Linking plugkit-ui".
 
 The CI scripts and the check harness live here too.
 
 ## Rules
 
-- **Copied from eq1 until eq1 ships.** eq1 doesn't change before then, so everything here is a copy of its code. Each copied piece, and every eq1 fix ported by hand, is listed in [eq1#231](https://github.com/Patrick-M-Bourget/eq1/issues/231), the ticket that later migrates eq1 onto plugkit. See comp1's ADR 0006.
+- **Copied from eq1 until eq1 ships.** eq1 doesn't change before then, so everything here is a copy of its code. Each copied file names its eq1 source in a "Copied from eq1's <path> (eq1 at dbb1127)" header, and every eq1 fix ported by hand says so in its commit. [eq1#231](https://github.com/Patrick-M-Bourget/eq1/issues/231), the ticket that later migrates eq1 onto plugkit, builds its table from those. See comp1's ADR 0006.
 - **Pinned per plugin.** Each plugin pins an exact plugkit tag or commit through FetchContent, never a branch. Bumping the pin is that plugin's own PR, through its full checks. See comp1's ADR 0007.
 - **Grown in slices**, each just before comp1 needs it:
   1. CI and the check harness ([comp1#2](https://github.com/Patrick-M-Bourget/comp1/issues/2)).
@@ -24,7 +26,7 @@ The CI scripts and the check harness live here too.
 
 ## Linking plugkit-ui
 
-- **JUCE is the plugin's.** Each plugin pins JUCE, and fetches it before plugkit: `plugkit-ui` links the `juce::` targets that already exist, and never fetches JUCE itself when they do. Fetched by a project without them (an Engine-only build), plugkit defines no `plugkit::ui` and says so. plugkit's own build fetches JUCE 9.0.3, the version eq1 and comp1 pin, to build and test it.
+- **JUCE is the plugin's.** Each plugin pins JUCE, and fetches it before plugkit: `plugkit-ui` links the `juce::` targets that already exist, and never fetches JUCE itself when they do. It links `juce_gui_basics`, `juce_audio_processors` and `juce_dsp` (the Analyzer's FFT), which a plugin that fetched JUCE has, and `plugkit::dsp`. Fetched by a project without them (an Engine-only build), plugkit defines no `plugkit::ui` and says so. plugkit's own build fetches JUCE 9.0.3, the version eq1 and comp1 pin, to build and test it.
 - **One target compiles it.** `plugkit::ui` is an interface library, as JUCE's modules are: its sources compile into the target that links it, with that target's JUCE settings. The plugin links it from its plugin target (`target_link_libraries(<name> PRIVATE plugkit::ui)`), and only there, or the executable that links that target gets plugkit-ui twice.
 - **The editor harness:** a test executable links `plugkit::editor_harness`, which brings the harness and plugkit-ui's headers, not its sources, and defines `PLUGKIT_HARNESS_VAR_PREFIX` as the plugin's `VAR_PREFIX`, so `check.sh screens` reaches `harness::writeSnapshot` through `<prefix>SCREENS`:
 

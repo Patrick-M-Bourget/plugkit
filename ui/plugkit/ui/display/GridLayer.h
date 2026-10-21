@@ -1,0 +1,68 @@
+#pragma once
+
+// Copied from eq1's plugin/display/GridLayer.h (eq1 at dbb1127), in namespace plugkit::ui::display, the narrow
+// display's width read from DisplayGeometry::narrowWidth rather than eq1's layout token, paintGrid's overload for
+// any GridLines, and Label's == kept from warning on its float, as AnalyzerSettings' is.
+
+#include "../AnalyzerSettings.h"
+#include "DisplayGeometry.h"
+#include "../staple/CachedLayer.h"
+
+#include <vector>
+
+namespace plugkit::ui::display
+{
+
+// The grid, behind the Analyzer, from 20 Hz to 20 kHz: major Frequency lines at 20, 50, 100 ... 20k,
+// minor ones between them (none below DisplayGeometry::narrowWidth), Gain lines a third of the Display
+// Range apart, and the 0 dB line.
+struct GridLines
+{
+    std::vector<float> majorX, minorX;
+    std::vector<float> gainY; // from the bottom up, 0 dB left out
+    float zeroY = 0.0f;
+};
+GridLines gridLines (const DisplayGeometry& geometry);
+
+// A piece of text on the display, over the edge fades.
+struct Label
+{
+    juce::String text;
+    juce::Rectangle<float> area;
+    juce::Justification justification = juce::Justification::centred;
+    juce::Colour colour;
+    float fontSize = 0.0f;
+
+    JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wfloat-equal")
+    bool operator== (const Label&) const = default;
+    JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+};
+
+// The Frequency labels along the bottom, then the Gain labels at the right, from the top down, signed,
+// without +/- the Display Range itself.
+std::vector<Label> gridLabels (const DisplayGeometry& geometry);
+
+// The Analyzer's own dB scale at the outer right, on its scale (the top of the display is 0 dB): 10 dB
+// steps, 20 dB above a 90 dB range, kept clear of the top and bottom; none when the Analyzer shows
+// nothing.
+std::vector<Label> analyzerScaleLabels (const DisplayGeometry& geometry, const AnalyzerSettings& settings);
+
+// The lines from gridLines, over the display.
+void paintGrid (juce::Graphics& g, const DisplayGeometry& geometry);
+// Any grid's lines, each across size (width, height) from 0: the minor vertical lines, then the major ones and the
+// horizontal ones (gainY), then the zero line, in the grid's colours.
+void paintGrid (juce::Graphics& g, const GridLines& lines, juce::Point<int> size);
+void paintLabels (juce::Graphics& g, const std::vector<Label>& labels);
+
+// paintLabels with each label drawn once into an image of its own (staple::CachedLayer), and drawn from
+// it on every frame until the label, or the scale it is drawn at, changes.
+class CachedLabels
+{
+public:
+    void paint (juce::Graphics& g, juce::Point<float> origin, const std::vector<Label>& labels);
+
+private:
+    std::vector<staple::CachedLayer<Label>> layers; // by the label's place in the list
+};
+
+} // namespace plugkit::ui::display

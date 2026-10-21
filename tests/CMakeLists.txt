@@ -35,10 +35,13 @@ add_test(NAME dsp_has_no_juce
 add_executable(plugkit_plugin_tests
     ui/ABCompareTest.cpp
     ui/AccessibilityTest.cpp
+    ui/AnalyzerSpectrumTest.cpp
+    ui/DisplayLayersTest.cpp
     ui/EditHistoryTest.cpp
     ui/EditorTickTest.cpp
     ui/HeaderTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/OutputMeterTest.cpp
     ui/PresetBrowserTest.cpp
     ui/PresetLibraryTest.cpp
     ui/PresetTest.cpp
