@@ -1,6 +1,5 @@
 // Copied from eq1's tests/plugin/StapleControlsTest.cpp (eq1 at dbb1127), against plugkit's test processor: its
-// controls attach to its parameters, undo steps are counted (TestProcessor.h's EditSteps) and not undone, and a
-// token colour stands in for a Band's; listed in eq1#231.
+// controls attach to its parameters, and a token colour stands in for a Band's; listed in eq1#231.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
@@ -33,7 +32,7 @@ struct Kit
 {
     juce::ScopedJuceInitialiser_GUI juce;
     plugkit::test::TestProcessor processor;
-    plugkit::test::EditSteps history { processor };
+    plugkit::ui::EditHistory& history = processor.editHistory();
     staple::LookAndFeel lookAndFeel;
     juce::Component window;
 
@@ -113,15 +112,17 @@ TEST_CASE ("A Knob's full range takes 200 px of vertical drag, 800 px with Shift
 
     kit.drag (knob, centreOf (knob), -50.0f);
     CHECK_THAT (position (knob), WithinAbs (0.75, 1.0e-4));
-    CHECK (kit.history.count() == 1);
+    CHECK (kit.history.undoSteps() == 1);
 
     kit.drag (knob, centreOf (knob), 80.0f, juce::ModifierKeys::shiftModifier);
     CHECK_THAT (position (knob), WithinAbs (0.65, 1.0e-4));
-    CHECK (kit.history.count() == 2);
+    CHECK (kit.history.undoSteps() == 2);
 
     // Past either end, it stops there.
     kit.drag (knob, centreOf (knob), -400.0f);
     CHECK_THAT (position (knob), WithinAbs (1.0, 1.0e-6));
+    kit.history.undo();
+    CHECK_THAT (position (knob), WithinAbs (0.65, 1.0e-4));
 }
 
 TEST_CASE ("parseValue reads a typed value in its parameter's units, with or without a unit or a k")
@@ -169,11 +170,13 @@ TEST_CASE ("A double-click on a Knob resets its parameter to the default as one 
     const float defaultFrequency = kit.value (Processor::frequencyId);
     kit.drag (knob, centreOf (knob), -60.0f);
     REQUIRE (kit.value (Processor::frequencyId) > defaultFrequency * 2.0f);
-    const int steps = kit.history.count();
+    const int steps = kit.history.undoSteps();
 
     kit.doubleClick (knob, centreOf (knob));
     CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (defaultFrequency, 1.0e-2));
-    CHECK (kit.history.count() == steps + 1);
+    CHECK (kit.history.undoSteps() == steps + 1);
+    kit.history.undo();
+    CHECK (kit.value (Processor::frequencyId) > defaultFrequency * 2.0f);
 }
 
 TEST_CASE ("A disabled Knob ignores drags, double-clicks and arrow keys, and shows no tooltip")
@@ -191,7 +194,7 @@ TEST_CASE ("A disabled Knob ignores drags, double-clicks and arrow keys, and sho
     knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
     CHECK_FALSE (knob.isTooltipShown());
     CHECK_THAT (position (knob), WithinAbs (0.6, 1.0e-4));
-    CHECK (kit.history.count() == 0);
+    CHECK (kit.history.undoSteps() == 0);
 }
 
 TEST_CASE ("A Knob's tooltip shows its title and its value text with the unit while hovered or dragged")
@@ -280,21 +283,21 @@ TEST_CASE ("A value typed into a Knob's tooltip commits as one undo step on Ente
     field->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
     CHECK_FALSE (tooltip.isEditing());
     CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (1200.0, 0.5));
-    CHECK (kit.history.count() == 1);
+    CHECK (kit.history.undoSteps() == 1);
 
     tooltip.startEditing();
     tooltip.getEditor()->setText ("50 Hz");
     tooltip.getEditor()->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
     CHECK_FALSE (tooltip.isEditing());
     CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (1200.0, 0.5));
-    CHECK (kit.history.count() == 1);
+    CHECK (kit.history.undoSteps() == 1);
 
     // Out of range, it stops at the end of the range.
     tooltip.startEditing();
     tooltip.getEditor()->setText ("90 kHz");
     tooltip.getEditor()->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
     CHECK_THAT (position (knob), WithinAbs (1.0, 1.0e-6));
-    CHECK (kit.history.count() == 2);
+    CHECK (kit.history.undoSteps() == 2);
 }
 
 TEST_CASE ("A momentary IconButton is lit only while held, and reports its press and release")
@@ -337,7 +340,7 @@ TEST_CASE ("An IconButton attached as a toggle is lit while on, or shows Off for
     Kit::click (phase);
     CHECK (kit.value (Processor::invertId) == 1.0f);
     CHECK (phase.isLit());
-    CHECK (kit.history.count() == 1);
+    CHECK (kit.history.undoSteps() == 1);
 
     CHECK_FALSE (bypass.isOff());
     kit.processor.parameterState().getParameter (Processor::bypassId)->setValueNotifyingHost (1.0f);
@@ -391,7 +394,7 @@ TEST_CASE ("An EdgeSelector attached with ComboBoxAttachment sets its parameter 
 
     shape.setSelectedId (5, juce::sendNotificationSync); // as a pick from its list does
     CHECK (kit.value (Processor::shapeId) == 4.0f);
-    CHECK (kit.history.count() == 1);
+    CHECK (kit.history.undoSteps() == 1);
 
     CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
     CHECK (kit.value (Processor::shapeId) == 5.0f);
@@ -399,7 +402,7 @@ TEST_CASE ("An EdgeSelector attached with ComboBoxAttachment sets its parameter 
     CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
     CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
     CHECK (kit.value (Processor::shapeId) == 3.0f);
-    CHECK (kit.history.count() == 4);
+    CHECK (kit.history.undoSteps() == 4);
 
     // Its list carries the same icons.
     CHECK (shape.getRootMenu()->getNumItems() == 10);
@@ -623,7 +626,7 @@ TEST_CASE ("A Knob's outer ring lane reports presses, drags and hovers to its ha
     Kit::doubleClick (gain, onRing);
     CHECK (ring.downs == 3);
     CHECK_THAT (position (gain), WithinAbs (0.5, 1.0e-6));
-    CHECK (kit.history.count() == 0);
+    CHECK (kit.history.undoSteps() == 0);
 
     harness::paintImage (gain.getWidth(), gain.getHeight(), [&] (juce::Graphics& g) { gain.paintEntireComponent (g, false); });
     CHECK (ring.paints == 1);
