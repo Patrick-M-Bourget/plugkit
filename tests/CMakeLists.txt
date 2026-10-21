@@ -46,6 +46,7 @@ add_executable(plugkit_plugin_tests
     ui/StapleControlsTest.cpp
     ui/StapleTest.cpp
     ui/StateTest.cpp
+    ui/UiScaleTest.cpp
     ui/ValueTextTest.cpp
 )
 target_compile_definitions(plugkit_plugin_tests PRIVATE
