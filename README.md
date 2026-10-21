@@ -1,8 +1,9 @@
 # plugkit
 
-The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split:
+The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [comp1](https://github.com/Patrick-M-Bourget/comp1) audio plugins. It has two modules, mirroring eq1's own split, and a test-only target:
 
 - **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, and LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread.
+- **`plugkit::test_support`:** for a plugin's test executables only, so `plugkit-dsp` stays free of it. It holds AllocationGuard (`plugkit/test/AllocationGuard.h`), which counts the heap allocations its thread makes while it is alive, and the bytes they hold, for realtime-safety and footprint tests. Linking it, `target_link_libraries(<name>_engine_tests PRIVATE plugkit::test_support)`, replaces operator new and delete in that executable.
 - **`plugkit-ui`:** the JUCE layer. It holds the UI kit and the Plugin Shell's Presets, A/B Compare and edit history.
 
 The CI scripts and the check harness live here too.

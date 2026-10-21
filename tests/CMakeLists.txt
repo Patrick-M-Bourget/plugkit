@@ -11,6 +11,7 @@ include(Catch)
 
 # One source per line, sorted, so tickets adding tests in parallel merge cleanly.
 add_executable(plugkit_dsp_tests
+    AllocationGuardTest.cpp
     BellResponseTest.cpp
     BellStabilityTest.cpp
     Double2Test.cpp
@@ -20,5 +21,5 @@ add_executable(plugkit_dsp_tests
     SmootherTest.cpp
     StereoPlacementTest.cpp
 )
-target_link_libraries(plugkit_dsp_tests PRIVATE plugkit::dsp Catch2::Catch2WithMain)
+target_link_libraries(plugkit_dsp_tests PRIVATE plugkit::dsp plugkit::test_support Catch2::Catch2WithMain)
 catch_discover_tests(plugkit_dsp_tests ADD_TAGS_AS_LABELS)

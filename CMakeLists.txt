@@ -18,6 +18,7 @@ option(PLUGKIT_BUILD_TESTS "Build plugkit's tests (only when plugkit is the top-
 set(plugkit_compile_options "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-Werror=c99-designator>")
 
 add_subdirectory(dsp)
+add_subdirectory(test-support)
 
 # A plugin that fetches plugkit (FetchContent_MakeAvailable) gets its targets, not its tests.
 if(PROJECT_IS_TOP_LEVEL AND PLUGKIT_BUILD_TESTS)
