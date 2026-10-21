@@ -1,0 +1,429 @@
+#pragma once
+
+// Copied from eq1's tests/plugin/EditorHarness.h (eq1 at dbb1127), its screenshots folder named by the plugin's
+// PLUGKIT_HARNESS_VAR_PREFIX, and OpenEditor a template over the plugin's processor, without eq1's EQ display helpers,
+// which eq1's subclass of it keeps; listed in eq1#231.
+
+#include "plugkit/ui/EditorTick.h"
+#include "plugkit/ui/staple/controls/Tween.h"
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <cmath>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <vector>
+
+// The plugin's VAR_PREFIX (its plugkit.conf), as a string literal: the harness reads <prefix>SCREENS. The plugin's
+// test target defines it: target_compile_definitions(<name>_plugin_tests PRIVATE PLUGKIT_HARNESS_VAR_PREFIX="EQ1_").
+#ifndef PLUGKIT_HARNESS_VAR_PREFIX
+    #error "Define PLUGKIT_HARNESS_VAR_PREFIX as the plugin's VAR_PREFIX, a string literal such as \"EQ1_\""
+#endif
+
+namespace harness
+{
+
+// The first child of parent, at any depth, that is a T and passes test.
+template <typename T>
+T* findChild (juce::Component& parent, std::function<bool (T&)> test = [] (T&) { return true; })
+{
+    for (auto* child : parent.getChildren())
+    {
+        if (auto* found = dynamic_cast<T*> (child); found != nullptr && test (*found))
+            return found;
+        if (auto* found = findChild<T> (*child, test))
+            return found;
+    }
+    return nullptr;
+}
+
+// The folder <prefix>SCREENS names, where renders for checking by hand against the prototype go
+// (scripts/check.sh screens <dir> runs every hidden [.screens] test with it); empty when unset. The one
+// place a test reads a <prefix> environment variable.
+inline juce::String snapshotFolder() { return juce::SystemStats::getEnvironmentVariable (PLUGKIT_HARNESS_VAR_PREFIX "SCREENS", {}); }
+
+// Writes image as <name>.png into the snapshot folder, if one is set.
+inline void writeSnapshot (const juce::Image& image, const juce::String& name)
+{
+    const auto folder = snapshotFolder();
+    if (folder.isEmpty())
+        return;
+    REQUIRE (image.isValid());
+    const auto file = juce::File (folder).getChildFile (name + ".png");
+    file.getParentDirectory().createDirectory();
+    file.deleteFile();
+    juce::FileOutputStream stream (file);
+    REQUIRE (stream.openedOk());
+    CHECK (juce::PNGImageFormat().writeImageToStream (image, stream));
+}
+
+// Renders area of component (all of it when empty) at scale and writes it as name (above); renders
+// nothing when no snapshot folder is set.
+inline void writeSnapshot (juce::Component& component, const juce::String& name, juce::Rectangle<int> area = {}, float scale = 2.0f)
+{
+    if (snapshotFolder().isEmpty())
+        return;
+    writeSnapshot (component.createComponentSnapshot (area.isEmpty() ? component.getLocalBounds() : area, true, scale), name);
+}
+
+// A width x height image that paint draws on, ready to read: a software image (or one of type) whose
+// Graphics is gone before it's returned. A GPU-backed image (Direct2D on Windows) holds its drawing
+// until its context ends, so a pixel read while the Graphics is open sees nothing there, on Windows
+// only. The one place a test opens a Graphics on an image.
+template <typename Paint>
+juce::Image paintImage (int width, int height, Paint&& paint, const juce::ImageType& type = juce::SoftwareImageType())
+{
+    juce::Image image (juce::Image::ARGB, width, height, true, type);
+    {
+        juce::Graphics g (image);
+        paint (g);
+    }
+    return image;
+}
+
+// A mouse event on target at position, in its own pixels, with mods held: pressed at downAt
+// (position unless given), and the clicks-th click.
+inline juce::MouseEvent mouseEvent (juce::Component& target, juce::Point<float> position, juce::ModifierKeys mods = {},
+                                    std::optional<juce::Point<float>> downAt = std::nullopt, int clicks = 1)
+{
+    const auto now = juce::Time::getCurrentTime();
+    const auto pressedAt = downAt.value_or (position);
+    return { juce::Desktop::getInstance().getMainMouseSource(),
+             position,
+             mods,
+             juce::MouseInputSource::defaultPressure,
+             juce::MouseInputSource::defaultOrientation,
+             juce::MouseInputSource::defaultRotation,
+             juce::MouseInputSource::defaultTiltX,
+             juce::MouseInputSource::defaultTiltY,
+             &target,
+             &target,
+             now,
+             pressedAt,
+             now,
+             clicks,
+             position != pressedAt };
+}
+
+// The key with Shift held.
+inline juce::KeyPress withShift (juce::KeyPress key) { return { key.getKeyCode(), juce::ModifierKeys::shiftModifier, 0 }; }
+
+// The menu item with this text, at any depth: its action, as a pick from the open menu runs it.
+inline std::function<void()> actionOf (const juce::PopupMenu& menu, const juce::String& text)
+{
+    for (juce::PopupMenu::MenuItemIterator it (menu, true); it.next();)
+        if (it.getItem().text == text)
+            return it.getItem().action;
+    return {};
+}
+
+// The open popup menu's window (a window of its own, which JUCE names "menu"), or nullptr.
+inline juce::Component* openMenu()
+{
+    auto& desktop = juce::Desktop::getInstance();
+    for (int i = desktop.getNumComponents(); --i >= 0;)
+        if (auto* window = desktop.getComponent (i); window->getName() == "menu" && window->isVisible())
+            return window;
+    return nullptr;
+}
+
+// A layout with the given main input and output, and Sidechain (disabled unless given).
+inline juce::AudioProcessor::BusesLayout layoutOf (const juce::AudioChannelSet& in,
+                                                  const juce::AudioChannelSet& out,
+                                                  const juce::AudioChannelSet& sidechain = juce::AudioChannelSet::disabled())
+{
+    juce::AudioProcessor::BusesLayout layout;
+    layout.inputBuses.add (in);
+    layout.inputBuses.add (sidechain);
+    layout.outputBuses.add (out);
+    return layout;
+}
+
+// Switches the main input and output to channels, with sidechain, and prepares to play at 48 kHz in
+// blocks of 512, as a host does.
+inline void useLayout (juce::AudioProcessor& processor,
+                       const juce::AudioChannelSet& channels,
+                       const juce::AudioChannelSet& sidechain = juce::AudioChannelSet::disabled())
+{
+    REQUIRE (processor.setBusesLayout (layoutOf (channels, channels, sidechain)));
+    processor.prepareToPlay (48000.0, 512);
+}
+
+// Lets JUCE's timers run for milliseconds: until a timer started now with that interval has fired.
+// JUCE fires timers in the order they fall due, so every timer due sooner has fired by then, however
+// late a busy machine's timer thread runs them (giving up after 10 s). Tests wait with this, never a
+// loop of their own: a wall-clock wait ends before the timers run on a loaded CI runner. It doesn't
+// see an animation through, though: a repeating timer (a Tween's 60 Hz frames) fires once for all
+// the frames a stalled timer thread missed, so a 180 ms pop-in can still be halfway in after
+// settle (300). Waits on an animation's end go through settleAnimations or settleUntil (below).
+inline void settle (int milliseconds = 60)
+{
+    struct Probe final : juce::Timer
+    {
+        bool fired = false;
+        void timerCallback() override
+        {
+            fired = true;
+            stopTimer();
+        }
+    } probe;
+    probe.startTimer (milliseconds);
+    const auto giveUp = juce::Time::getMillisecondCounter() + static_cast<juce::uint32> (milliseconds + 10000);
+    while (! probe.fired && juce::Time::getMillisecondCounter() < giveUp)
+    {
+        juce::Timer::callPendingTimersSynchronously();
+        juce::Thread::sleep (5);
+    }
+}
+
+// Lets JUCE's timers run until done() is true, giving up after 10 s; returns done(). What a test
+// checks once an animation or a run of timer callbacks has ended (a popover popped in) waits with
+// this, not with a fixed settle (ms): the deadline only bounds a real failure, so a slow machine
+// doesn't fail the test.
+inline bool settleUntil (const std::function<bool()>& done)
+{
+    const auto giveUp = juce::Time::getMillisecondCounter() + 10000u;
+    while (! done() && juce::Time::getMillisecondCounter() < giveUp)
+        settle (16);
+    return done();
+}
+
+// Lets JUCE's timers run for milliseconds (settle), so what they start has started, then until no
+// Tween is easing (settleUntil): what a test checks where an animation ends (a popover popped in, the
+// Band panel faded or slid open, an A/B switch's letters) waits with this.
+inline void settleAnimations (int milliseconds = 60)
+{
+    settle (milliseconds);
+    if (! settleUntil ([] { return staple::Tween::numberEasing() == 0; }))
+        FAIL ("settleAnimations gave up after 10 s with " << staple::Tween::numberEasing()
+                                                         << " animation(s) still easing");
+}
+
+// Counts the repaints asked of a component, standing in for its drawing (it draws nothing, children
+// included). Installed with countRepaintsOf, through setCachedComponentImage, which owns it: a test that
+// renders the component afterwards takes it off first (setCachedComponentImage (nullptr)). JUCE asks a
+// component's cached image before anything else about a repaint, so every repaint() is counted, whether
+// or not a window would paint it.
+struct RepaintCounter final : juce::CachedComponentImage
+{
+    int count = 0;
+    void paint (juce::Graphics&) override {}
+    bool invalidateAll() override { return ++count > 0; }
+    bool invalidate (const juce::Rectangle<int>&) override { return ++count > 0; }
+    void releaseResources() override {}
+};
+
+// Counts component's repaints from now on (RepaintCounter), not the one installing the counter asks
+// for; component owns the counter.
+inline RepaintCounter& countRepaintsOf (juce::Component& component)
+{
+    auto* counter = new RepaintCounter();
+    component.setCachedComponentImage (counter);
+    counter->count = 0;
+    return *counter;
+}
+
+// Checks that component, just opened, is drawn at the start of its pop-in (staple::popInTransform):
+// smaller than endsAt, where it ends up in its parent's coordinates, about the same centre, 3 px lower.
+inline void checkPopInStart (const juce::Component& component, juce::Rectangle<float> endsAt)
+{
+    using Catch::Matchers::WithinAbs;
+    REQUIRE (component.isTransformed());
+    const auto drawn = endsAt.transformedBy (component.getTransform());
+    CHECK (drawn.getWidth() < endsAt.getWidth());
+    CHECK_THAT (drawn.getCentreX(), WithinAbs (endsAt.getCentreX(), 1.0e-3));
+    CHECK_THAT (drawn.getCentreY(), WithinAbs (endsAt.getCentreY() + 3.0f, 1.0e-3));
+}
+
+// The editor in a window of its own, as a host shows it, so it takes keyboard focus. Keys go through
+// the window, to the focused control and up through its parents, as the user's do. Processor is the
+// plugin's, default-constructed; its editor is an EditorTick::Host. A plugin's own subclass adds the
+// helpers for its displays (eq1's sends the mouse straight to its EQ display).
+template <typename Processor>
+struct OpenEditor
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    Processor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor { processor.createEditor() };
+
+    OpenEditor()
+    {
+        editor->addToDesktop (0);
+        editor->setVisible (true);
+    }
+
+    ~OpenEditor()
+    {
+        juce::PopupMenu::dismissAllActiveMenus();
+        editor.reset();
+    }
+
+    OpenEditor (const OpenEditor&) = delete;
+    OpenEditor& operator= (const OpenEditor&) = delete;
+
+    // The editor's one tick (EditorTick), which its components follow the processor on.
+    plugkit::ui::EditorTick& editorTick() { return dynamic_cast<plugkit::ui::EditorTick::Host&> (*editor).editorTick(); }
+
+    // The host parameter with this ID; the test fails without one.
+    juce::RangedAudioParameter& parameter (const juce::String& id)
+    {
+        for (auto* p : processor.getParameters())
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p); ranged != nullptr && ranged->getParameterID() == id)
+                return *ranged;
+        FAIL ("No host parameter has the ID " << id);
+        throw std::logic_error ("unreachable");
+    }
+    // Its plain value.
+    float value (const juce::String& id) { return parameter (id).convertFrom0to1 (parameter (id).getValue()); }
+
+    void set (const juce::String& id, float plain) { parameter (id).setValueNotifyingHost (parameter (id).convertTo0to1 (plain)); }
+
+    // Lets the editor's timers run for milliseconds, so it shows what the parameters hold (harness::settle).
+    void settle (int milliseconds = 60) { harness::settle (milliseconds); }
+    // Lets them run until done() is true (harness::settleUntil).
+    bool settleUntil (const std::function<bool()>& done) { return harness::settleUntil (done); }
+    // Lets them run, then until every animation has ended (harness::settleAnimations).
+    void settleAnimations (int milliseconds = 60) { harness::settleAnimations (milliseconds); }
+
+    // Where c is, in the editor's coordinates.
+    juce::Rectangle<int> inEditor (juce::Component& c) const { return editor->getLocalArea (&c, c.getLocalBounds()); }
+
+    // The first showing child of the editor that is a T titled title (any T without one).
+    template <typename T = juce::Component>
+    T& showing (const juce::String& title = {})
+    {
+        auto found = findAll<T> ([&title] (T& c) { return (title.isEmpty() || c.getTitle() == title) && c.isShowing(); });
+        INFO ("Nothing showing is titled " << title);
+        REQUIRE_FALSE (found.empty());
+        return *found.front();
+    }
+
+    // Every child of the editor, at any depth, that is a T and passes test.
+    template <typename T>
+    std::vector<T*> findAll (std::function<bool (T&)> test = [] (T&) { return true; })
+    {
+        std::vector<T*> found;
+        std::function<void (juce::Component&)> visit = [&] (juce::Component& parent) {
+            for (auto* child : parent.getChildren())
+            {
+                if (auto* t = dynamic_cast<T*> (child); t != nullptr && test (*t))
+                    found.push_back (t);
+                visit (*child);
+            }
+        };
+        visit (*editor);
+        return found;
+    }
+
+    // A key pressed and released in the window, as the user types it.
+    bool press (const juce::KeyPress& key)
+    {
+        const bool used = hold (key);
+        release();
+        return used;
+    }
+    // A key pressed, or auto-repeated while held, without its release.
+    bool hold (const juce::KeyPress& key)
+    {
+        editor->getPeer()->handleKeyUpOrDown (true);
+        return editor->getPeer()->handleKeyPress (key);
+    }
+    void release() { editor->getPeer()->handleKeyUpOrDown (false); }
+};
+
+
+// Saved sessions, decoded and restored as a host does.
+
+// Restores a session into processor, as a host does: the block as saved, or a state as XML.
+inline void restoreState (juce::AudioProcessor& processor, const juce::MemoryBlock& saved)
+{
+    processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+}
+
+inline void restoreState (juce::AudioProcessor& processor, const juce::XmlElement& xml)
+{
+    juce::MemoryBlock saved;
+    juce::AudioProcessor::copyXmlToBinary (xml, saved);
+    restoreState (processor, saved);
+}
+
+// The first host parameter whose value isn't finite and in range, named with its value: its normalised
+// value within 0 to 1 and its plain one within the parameter's range. Empty when every one is.
+inline juce::String firstParameterOutOfRange (juce::AudioProcessor& processor)
+{
+    for (auto* p : processor.getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p);
+        if (ranged == nullptr)
+            return p->getName (64) + ": not a RangedAudioParameter";
+        const float normalised = ranged->getValue();
+        if (! std::isfinite (normalised) || normalised < 0.0f || normalised > 1.0f)
+            return ranged->getParameterID() + ": normalised " + juce::String (normalised);
+        const float plain = ranged->convertFrom0to1 (normalised);
+        const auto& range = ranged->getNormalisableRange();
+        if (! std::isfinite (plain) || plain < range.start || plain > range.end)
+            return ranged->getParameterID() + ": " + juce::String (plain) + " outside " + juce::String (range.start) + " to " + juce::String (range.end);
+    }
+    return {};
+}
+
+// A saved session decoded as setStateInformation reads it. The saved block starts with a binary
+// header, so its raw bytes (MemoryBlock::toString) never show the XML.
+inline std::unique_ptr<juce::XmlElement> savedXml (const juce::MemoryBlock& saved)
+{
+    return juce::AudioProcessor::getXmlFromBinary (saved.getData(), static_cast<int> (saved.getSize()));
+}
+
+inline juce::ValueTree savedState (const juce::MemoryBlock& saved)
+{
+    const auto xml = savedXml (saved);
+    return xml != nullptr ? juce::ValueTree::fromXml (*xml) : juce::ValueTree();
+}
+
+// The session state a processor saves, decoded. A test that also restores the session saves the block
+// once with getStateInformation and decodes that instead.
+inline juce::MemoryBlock savedBlock (juce::AudioProcessor& processor)
+{
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+    return saved;
+}
+
+inline std::unique_ptr<juce::XmlElement> savedXml (juce::AudioProcessor& processor) { return savedXml (savedBlock (processor)); }
+
+inline juce::ValueTree savedState (juce::AudioProcessor& processor) { return savedState (savedBlock (processor)); }
+
+// Every name a setting could be saved under, at any depth: each child's type, each property's name,
+// and the value of each "id" property (host parameters are saved as children with an id).
+inline juce::StringArray savedNames (const juce::ValueTree& tree)
+{
+    juce::StringArray names { tree.getType().toString() };
+    for (int i = 0; i < tree.getNumProperties(); ++i)
+    {
+        const auto name = tree.getPropertyName (i);
+        names.add (name.toString());
+        if (name.toString() == "id")
+            names.add (tree.getProperty (name).toString());
+    }
+    for (const auto& child : tree)
+        names.addArray (savedNames (child));
+    return names;
+}
+
+// The saved names containing word, ignoring case: empty when nothing is saved under it.
+inline juce::StringArray savedNamesContaining (const juce::ValueTree& tree, const juce::String& word)
+{
+    juce::StringArray found;
+    for (const auto& name : savedNames (tree))
+        if (name.containsIgnoreCase (word))
+            found.add (name);
+    return found;
+}
+
+} // namespace harness

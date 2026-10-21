@@ -80,7 +80,7 @@ jobs:
 
       # A time limit of about twice a normal run, so a step that slows down fails and names itself
       # (scripts/ci-timings.sh shows each step's time). Build has none: a cold compiler cache varies too much.
-      - name: plugkit-dsp tests
+      - name: plugkit tests
         timeout-minutes: 8
         run: scripts/check.sh test
 
