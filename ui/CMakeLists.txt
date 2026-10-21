@@ -37,13 +37,18 @@ add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ABCompare.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Accessibility.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/CompareGroup.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditHistory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardControl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetBar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetBrowser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetLibrary.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetSettings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/SetTogether.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/UiScaleMenu.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/UserSettings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
