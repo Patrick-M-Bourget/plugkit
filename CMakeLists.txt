@@ -5,7 +5,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 endif()
 
-project(plugkit VERSION 0.3.0 LANGUAGES CXX)
+# C as well as C++: JUCE refuses a project without it.
+project(plugkit VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,14 +19,9 @@ option(PLUGKIT_BUILD_TESTS "Build plugkit's tests (only when plugkit is the top-
 set(plugkit_compile_options "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-Werror=c99-designator>")
 
 add_subdirectory(dsp)
-add_subdirectory(test-support)
 
-# A plugin that fetches plugkit (FetchContent_MakeAvailable) gets its targets, not its tests.
-if(PROJECT_IS_TOP_LEVEL AND PLUGKIT_BUILD_TESTS)
-    if(MSVC)
-        add_compile_options(/utf-8)
-    endif()
-    include(FetchContent)
+include(FetchContent)
+if(PROJECT_IS_TOP_LEVEL)
     # A .deps folder is shared by every worktree's universal build (scripts/check.sh), dependencies' build folders
     # included, so a build for other architectures fetches into a folder of its own. As eq1's root CMakeLists.txt.
     if(APPLE AND DEFINED FETCHCONTENT_BASE_DIR)
@@ -35,6 +31,16 @@ if(PROJECT_IS_TOP_LEVEL AND PLUGKIT_BUILD_TESTS)
                 "and this one builds for '${CMAKE_OSX_ARCHITECTURES}'. Configure with "
                 "-DCMAKE_OSX_ARCHITECTURES=\"arm64;x86_64\" (scripts/check.sh does), or with a folder of its own.")
         endif()
+    endif()
+endif()
+
+add_subdirectory(ui)
+add_subdirectory(test-support)
+
+# A plugin that fetches plugkit (FetchContent_MakeAvailable) gets its targets, not its tests.
+if(PROJECT_IS_TOP_LEVEL AND PLUGKIT_BUILD_TESTS)
+    if(MSVC)
+        add_compile_options(/utf-8)
     endif()
     enable_testing()
     add_subdirectory(tests)
