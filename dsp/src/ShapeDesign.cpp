@@ -450,19 +450,19 @@ Cascade interpolate (const Cascade& from, const Cascade& to, double amount)
     return result;
 }
 
-Structure structureOf (const BandShape& settings)
+Structure structureOf (const BandShape& shape)
 {
-    if (! hasSlope (settings.shape))
-        return { settings.shape, 0 };
-    if (isCut (settings.shape) && settings.brickwall)
-        return { settings.shape, brickwallOrder };
+    if (! hasSlope (shape.shape))
+        return { shape.shape, 0 };
+    if (isCut (shape.shape) && shape.brickwall)
+        return { shape.shape, brickwallOrder };
 
     // The stored Slope is raised to the Shape's minimum and rounded to the nearest whole order
     // (eq1's ADR 0003; eq1's dsp/filter-design.md, "Slopes between whole orders").
     // A Notch's order counts 12 dB/oct steps.
-    const double slope = std::clamp (settings.slope, minimumSlope (settings.shape), 6.0 * maxSlopeOrder);
-    const double step = settings.shape == Shape::Notch ? 12.0 : 6.0;
-    return { settings.shape, static_cast<int> (std::lround (slope / step)) };
+    const double slope = std::clamp (shape.slope, minimumSlope (shape.shape), 6.0 * maxSlopeOrder);
+    const double step = shape.shape == Shape::Notch ? 12.0 : 6.0;
+    return { shape.shape, static_cast<int> (std::lround (slope / step)) };
 }
 
 Cascade designShape (const ShapeParameters& p, double sampleRate)

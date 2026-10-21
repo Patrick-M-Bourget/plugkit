@@ -40,7 +40,7 @@ struct Structure
     bool operator== (const Structure&) const = default;
 };
 
-Structure structureOf (const BandShape& settings);
+Structure structureOf (const BandShape& shape);
 
 struct ShapeParameters
 {
