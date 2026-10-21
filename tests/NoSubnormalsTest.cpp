@@ -1,5 +1,5 @@
-// New in plugkit: eq1 has no test of its own for NoSubnormals (eq1's engine/src/NoSubnormals.h), which its Engine
-// holds while it processes.
+// What NoSubnormals does on its own: while one is alive, the thread flushes subnormal results to zero, and once it is
+// gone the thread's earlier mode is back. An Engine holds one while it processes.
 
 #include "plugkit/NoSubnormals.h"
 

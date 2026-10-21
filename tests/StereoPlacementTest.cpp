@@ -154,8 +154,8 @@ TEST_CASE ("On a mono track, a Side Band has no effect and every other Stereo Pl
 
 TEST_CASE ("A placed part plays back on the channels it came from, decoded on its own")
 {
-    // New in plugkit (eq1 tests placedSample only through its Engine's Solo): what a part plays on each of three
-    // output channels, its channel p being 10 + p. Left = Mid + Side and Right = Mid - Side; a third channel is silent.
+    // What a part plays on each of three output channels, its channel p being 10 + p, for every Placement on stereo
+    // and on mono. Left = Mid + Side and Right = Mid - Side; a third channel is silent, and so is Side on mono.
     struct Case
     {
         StereoPlacement placement;
