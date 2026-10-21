@@ -16,6 +16,7 @@ add_executable(plugkit_dsp_tests
     Double2Test.cpp
     ShapeResponseTest.cpp
     SmootherTest.cpp
+    StereoPlacementTest.cpp
 )
 target_link_libraries(plugkit_dsp_tests PRIVATE plugkit::dsp Catch2::Catch2WithMain)
 catch_discover_tests(plugkit_dsp_tests ADD_TAGS_AS_LABELS)

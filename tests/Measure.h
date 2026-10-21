@@ -1,12 +1,13 @@
 #pragma once
 
 // The tests' shared helpers, copied from eq1's tests/engine/Measure.h (eq1 at dbb1127); listed in eq1#231. What the
-// pieces are driven with (every Shape, seeded noise) and how what comes out is measured. eq1's
+// pieces are driven with (every Shape and Stereo Placement, seeded noise) and how what comes out is measured. eq1's
 // helpers drive its Engine; here impulseResponse runs a Cascade as eq1's Band does, and the Engine's scenes are left
 // out.
 
 #include "plugkit/BandShape.h"
 #include "plugkit/Biquad.h"
+#include "plugkit/Placement.h"
 #include "plugkit/ShapeDesign.h"
 
 #include <catch2/generators/catch_generators.hpp>
@@ -22,9 +23,11 @@
 namespace plugkit::test
 {
 
-// Every Shape, in its enum's order.
+// Every Shape and every Stereo Placement, in their enums' order.
 inline constexpr std::array allShapes = { Shape::Bell,  Shape::LowShelf, Shape::LowCut,    Shape::HighShelf, Shape::HighCut,
                                           Shape::Notch, Shape::BandPass, Shape::TiltShelf, Shape::FlatTilt,  Shape::AllPass };
+inline constexpr std::array allPlacements = { StereoPlacement::Stereo, StereoPlacement::Left, StereoPlacement::Right,
+                                              StereoPlacement::Mid, StereoPlacement::Side };
 
 // White noise between -1 and 1: the same sequence for the same seed, so a test repeats exactly.
 class Noise
