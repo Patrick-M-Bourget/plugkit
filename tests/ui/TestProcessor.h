@@ -4,6 +4,7 @@
 // attach to, and an editor with Staple's look, its tick and a Knob for each number. Its ranges and text are eq1's Band Frequency, Gain, Shape and Stereo Placement ones
 // (eq1's plugin/Parameters.cpp), so the tests copied from eq1 check the same values.
 
+#include "plugkit/ui/EditHistory.h"
 #include "plugkit/ui/EditorTick.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
 #include "plugkit/ui/staple/controls/Knob.h"
@@ -12,7 +13,6 @@
 
 #include <cmath>
 #include <memory>
-#include <vector>
 
 namespace plugkit::test
 {
@@ -50,6 +50,8 @@ public:
     }
 
     juce::AudioProcessorValueTreeState& parameterState() { return parameters; }
+    // The undo history of the editor's edits.
+    plugkit::ui::EditHistory& editHistory() { return history; }
 
     const juce::String getName() const override { return "plugkit test"; }
     void prepareToPlay (double, int) override {}
@@ -107,6 +109,7 @@ private:
     }
 
     juce::AudioProcessorValueTreeState parameters { *this, nullptr, "plugkit_test", layout() };
+    plugkit::ui::EditHistory history { *this };
 };
 
 // The test processor's editor: Staple's LookAndFeel, the editor's tick (EditorTick), and a Knob for Frequency and one
@@ -144,51 +147,5 @@ private:
 };
 
 inline juce::AudioProcessorEditor* TestProcessor::createEditor() { return new TestEditor (*this); }
-
-// Counts the edits made through a processor's host parameters, as the plugin's edit history makes undo steps of them
-// (eq1's plugin/EditHistory.cpp): one per outermost run of gestures in which a parameter it gestured changed value.
-// Host Automation, outside any gesture, is no step; nor is a gesture that changes nothing.
-class EditSteps final : private juce::AudioProcessorListener
-{
-public:
-    explicit EditSteps (juce::AudioProcessor& p) : processor (p) { processor.addListener (this); }
-    ~EditSteps() override { processor.removeListener (this); }
-
-    int count() const { return steps; }
-
-private:
-    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
-    void audioProcessorChanged (juce::AudioProcessor*, const juce::AudioProcessorListener::ChangeDetails&) override {}
-
-    void audioProcessorParameterChangeGestureBegin (juce::AudioProcessor*, int index) override
-    {
-        if (open++ == 0)
-        {
-            before.clear();
-            for (auto* p : processor.getParameters())
-                before.push_back (p->getValue());
-            gestured.clear();
-        }
-        gestured.push_back (index);
-    }
-
-    void audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int) override
-    {
-        if (open == 0 || --open > 0)
-            return;
-        const auto& all = processor.getParameters();
-        for (int index : gestured)
-            if (! juce::exactlyEqual (all[index]->getValue(), before[static_cast<size_t> (index)]))
-            {
-                ++steps;
-                return;
-            }
-    }
-
-    juce::AudioProcessor& processor;
-    std::vector<float> before;
-    std::vector<int> gestured;
-    int open = 0, steps = 0;
-};
 
 } // namespace plugkit::test

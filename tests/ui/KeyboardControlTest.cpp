@@ -1,7 +1,6 @@
 // Copied from eq1's tests/plugin/KeyboardControlTest.cpp (eq1 at dbb1127), its cases on sliders' keys
-// (KeyboardSlider), against plugkit's test editor and its two Knobs: undo steps are counted (TestProcessor.h's
-// EditSteps) and not undone, and Threshold's, Gain Scale's and the popovers' cases, and those of eq1's editor-wide keys
-// (KeyboardControl) and EQ display, stay in eq1; listed in eq1#231.
+// (KeyboardSlider), against plugkit's test editor and its two Knobs; Threshold's, Gain Scale's and the popovers'
+// cases, and those of eq1's editor-wide keys (KeyboardControl) and EQ display, stay in eq1; listed in eq1#231.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
@@ -21,11 +20,9 @@ namespace
 const juce::KeyPress left (juce::KeyPress::leftKey), right (juce::KeyPress::rightKey), up (juce::KeyPress::upKey),
     down (juce::KeyPress::downKey);
 
-// The test editor, with its undo steps counted.
+// The test editor.
 struct EveryControl : OpenEditor
 {
-    plugkit::test::EditSteps history { processor };
-
     EveryControl() { settle(); }
 
     std::vector<juce::Slider*> sliders()
@@ -78,35 +75,41 @@ TEST_CASE ("Arrow keys step every slider 1% of its range, 0.2% with Shift, withi
 TEST_CASE ("Each arrow press on a slider is one undo step, and so is a held key with its repeats")
 {
     EveryControl host;
-    auto& history = host.history;
+    auto& history = host.processor.editHistory();
     for (auto* slider : host.sliders())
     {
         CAPTURE (slider->getName());
         slider->grabKeyboardFocus();
-        const int steps = history.count();
+        const double start = slider->getValue();
+        const int steps = history.undoSteps();
 
         host.press (down);
         host.press (down);
-        CHECK (history.count() == steps + 2);
+        CHECK (history.undoSteps() == steps + 2);
         for (int repeat = 0; repeat < 5; ++repeat)
             host.hold (up);
         host.release();
-        CHECK (history.count() == steps + 3);
+        CHECK (history.undoSteps() == steps + 3);
+
+        history.undo();
+        history.undo();
+        history.undo();
+        CHECK_THAT (slider->getValue(), WithinAbs (start, 1.0e-3 * (slider->getMaximum() - slider->getMinimum())));
     }
 }
 
 TEST_CASE ("A held arrow key's undo step ends when the slider loses focus")
 {
     EveryControl host;
-    auto& history = host.history;
+    auto& history = host.processor.editHistory();
     auto sliders = host.sliders();
     REQUIRE (sliders.size() == 2);
     sliders[0]->grabKeyboardFocus();
-    const int steps = history.count();
+    const int steps = history.undoSteps();
     host.hold (down);
     host.hold (down);
     sliders[1]->grabKeyboardFocus();
-    CHECK (history.count() == steps + 1);
+    CHECK (history.undoSteps() == steps + 1);
 }
 
 TEST_CASE ("The focus ring is hidden until an arrow key steps a slider, and hides again when told to")
