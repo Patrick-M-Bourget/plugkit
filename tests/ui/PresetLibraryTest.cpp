@@ -1,0 +1,391 @@
+// Copied from eq1's tests/plugin/PresetLibraryTest.cpp (eq1 at dbb1127), against plugkit's test processor and a
+// library with its config (TestProcessor::libraryConfig): "Documents/plugkit test/Presets", ".plugkittest" and its two
+// Factory Presets stand in for eq1's, and fileExtension() and read() are the library's own.
+
+#include "TestProcessor.h"
+#include "plugkit/ui/PresetLibrary.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <set>
+
+using Catch::Matchers::WithinAbs;
+using Catch::Matchers::WithinRel;
+using plugkit::test::TestProcessor;
+using plugkit::ui::PresetLibrary;
+
+namespace
+{
+
+// A plugin as a host has it.
+struct Host
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    TestProcessor processor;
+    plugkit::ui::Session& session = processor.sessionState();
+
+    juce::RangedAudioParameter& parameter (const juce::String& id) { return *processor.parameterState().getParameter (id); }
+    float value (const juce::String& id) { return processor.parameterState().getRawParameterValue (id)->load(); }
+
+    void edit (const juce::String& id, float plain)
+    {
+        auto& p = parameter (id);
+        p.beginChangeGesture();
+        p.setValueNotifyingHost (p.convertTo0to1 (plain));
+        p.endChangeGesture();
+    }
+};
+
+// An empty folder, deleted afterwards.
+struct Folder
+{
+    juce::TemporaryFile temporary;
+    juce::File folder = temporary.getFile();
+    Folder() { REQUIRE (folder.createDirectory()); }
+    ~Folder() { folder.deleteRecursively(); }
+};
+
+// The test processor's library, its User Presets kept in folder.
+PresetLibrary libraryIn (const juce::File& folder) { return PresetLibrary (TestProcessor::libraryConfig(), folder); }
+// Its User Presets in the default folder, for what doesn't depend on it: reading a file, the Factory Presets.
+PresetLibrary anyLibrary() { return PresetLibrary (TestProcessor::libraryConfig()); }
+const juce::String fileExtension = TestProcessor::libraryConfig().fileExtension;
+
+} // namespace
+
+TEST_CASE ("User Presets are kept in Documents/<product name>/Presets by default")
+{
+    const auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("plugkit test").getChildFile ("Presets");
+    CHECK (PresetLibrary::defaultUserFolder ("plugkit test") == folder);
+    CHECK (anyLibrary().folder() == folder);
+}
+
+TEST_CASE ("A User Preset saves as a file in the User folder and loads back")
+{
+    Folder user;
+    const auto library = libraryIn (user.folder);
+    Host saved;
+    saved.edit (TestProcessor::invertId, 1.0f);
+    saved.edit (TestProcessor::frequencyId, 4200.0f);
+    saved.edit (TestProcessor::gainId, -9.0f);
+    saved.edit (TestProcessor::placementId, 3.0f);
+
+    const auto saving = library.save ("Bright Vocal", saved.session.presetState());
+    REQUIRE (saving.has_value());
+    const auto file = *saving;
+    CHECK (file == user.folder.getChildFile ("Bright Vocal.plugkittest"));
+    CHECK (file.existsAsFile());
+    const auto presets = library.userPresets();
+    REQUIRE (presets.size() == 1);
+    CHECK (presets.front() == file);
+
+    Host loaded;
+    loaded.session.loadPreset (anyLibrary().read (file), file.getFileNameWithoutExtension());
+    CHECK (loaded.value (TestProcessor::invertId) == 1.0f);
+    CHECK_THAT (loaded.value (TestProcessor::frequencyId), WithinAbs (4200.0, 1.0e-2));
+    CHECK_THAT (loaded.value (TestProcessor::gainId), WithinAbs (-9.0, 1.0e-4));
+    CHECK (loaded.value (TestProcessor::placementId) == 3.0f);
+}
+
+TEST_CASE ("A User Preset file is portable: copied into another machine's folder, it loads the same")
+{
+    Folder here, there;
+    Host saved;
+    saved.edit (TestProcessor::bypassId, 1.0f);
+    saved.edit (TestProcessor::gainId, 3.5f);
+    const auto saving = libraryIn (here.folder).save ("Warm", saved.session.presetState());
+    REQUIRE (saving.has_value());
+    const auto file = *saving;
+    const auto copy = there.folder.getChildFile (file.getFileName());
+    REQUIRE (file.copyFileTo (copy));
+    REQUIRE (file.deleteFile());
+
+    // Plain XML, holding parameter ids and plain values: nothing tied to this machine or build.
+    const auto xml = juce::XmlDocument::parse (copy);
+    REQUIRE (xml != nullptr);
+    CHECK (xml->hasTagName (TestProcessor::stateType));
+    CHECK_FALSE (xml->toString().contains (here.folder.getFullPathName()));
+
+    const auto presets = libraryIn (there.folder).userPresets();
+    REQUIRE (presets.size() == 1);
+    Host loaded;
+    loaded.session.loadPreset (anyLibrary().read (presets.front()), presets.front().getFileNameWithoutExtension());
+    CHECK (loaded.value (TestProcessor::bypassId) == 1.0f);
+    CHECK_THAT (loaded.value (TestProcessor::gainId), WithinAbs (3.5, 1.0e-4));
+}
+
+TEST_CASE ("Saving under an existing name replaces that Preset; a name a file can't hold is made safe")
+{
+    Folder user;
+    const auto library = libraryIn (user.folder);
+    Host host;
+    library.save ("Kick", host.session.presetState());
+    host.edit (TestProcessor::bypassId, 1.0f);
+    library.save ("Kick", host.session.presetState());
+    const auto odd = library.save ("Bass: Low/High", host.session.presetState());
+
+    const auto presets = library.userPresets();
+    REQUIRE (presets.size() == 2);
+    REQUIRE (odd.has_value());
+    CHECK (odd->existsAsFile());
+    CHECK (odd->getParentDirectory() == user.folder);
+    Host loaded;
+    loaded.session.loadPreset (anyLibrary().read (user.folder.getChildFile ("Kick.plugkittest")), "Kick");
+    CHECK (loaded.value (TestProcessor::bypassId) == 1.0f);
+}
+
+TEST_CASE ("A Preset name of only characters a file name can't hold is refused: nothing is saved, no hidden file")
+{
+    Folder user;
+    const auto library = libraryIn (user.folder);
+    Host host;
+    for (const auto* name : { ":/\\", "  ?*  ", "\"<>|", "" })
+    {
+        CAPTURE (name);
+        CHECK (PresetLibrary::legalName (name).isEmpty());
+        CHECK_FALSE (library.save (name, host.session.presetState()).has_value());
+    }
+    CHECK (user.folder.getNumberOfChildFiles (juce::File::findFilesAndDirectories) == 0);
+    CHECK (library.userPresets().empty());
+    // One with any legal character left saves under what is left.
+    CHECK (PresetLibrary::legalName (" Bass: Low/High ") == "Bass LowHigh");
+    const auto odd = library.save (" Bass: Low/High ", host.session.presetState());
+    REQUIRE (odd.has_value());
+    CHECK (odd->getFileNameWithoutExtension() == "Bass LowHigh");
+}
+
+TEST_CASE ("The User folder lists only Presets, by name; a missing folder lists none")
+{
+    Folder user;
+    user.folder.getChildFile ("notes.txt").replaceWithText ("not a Preset");
+    const auto library = libraryIn (user.folder);
+    Host host;
+    library.save ("b", host.session.presetState());
+    library.save ("A", host.session.presetState());
+    const auto presets = library.userPresets();
+    REQUIRE (presets.size() == 2);
+    CHECK (presets[0].getFileNameWithoutExtension() == "A");
+    CHECK (presets[1].getFileNameWithoutExtension() == "b");
+
+    CHECK (libraryIn (user.folder.getChildFile ("missing")).userPresets().empty());
+}
+
+TEST_CASE ("Saving where a file can't be written gives nothing")
+{
+    Folder user;
+    const auto notAFolder = user.folder.getChildFile ("file");
+    REQUIRE (notAFolder.replaceWithText ("in the way"));
+    Host host;
+    CHECK_FALSE (libraryIn (notAFolder).save ("Kick", host.session.presetState()).has_value());
+}
+
+TEST_CASE ("A file that isn't a Preset reads as nothing")
+{
+    Folder user;
+    const auto file = user.folder.getChildFile ("broken.plugkittest");
+    file.replaceWithText ("not XML");
+    CHECK_FALSE (anyLibrary().read (file).isValid());
+    CHECK_FALSE (anyLibrary().read (user.folder.getChildFile ("missing.plugkittest")).isValid());
+    const auto other = user.folder.getChildFile ("other.plugkittest");
+    other.replaceWithText ("<other/>");
+    CHECK_FALSE (anyLibrary().read (other).isValid());
+}
+
+namespace
+{
+
+// A User Preset file written straight to disk, as a user copying one in would.
+void writePreset (const juce::File& file)
+{
+    Host host;
+    REQUIRE (file.getParentDirectory().createDirectory());
+    REQUIRE (host.session.presetState().createXml()->writeTo (file));
+}
+
+juce::StringArray namesAndFolders (const std::vector<PresetLibrary::Entry>& entries)
+{
+    juce::StringArray listed;
+    for (const auto& entry : entries)
+        listed.add (entry.folder + ": " + entry.name);
+    return listed;
+}
+
+} // namespace
+
+TEST_CASE ("The browser lists Factory, then the User folder's Presets, then its subfolders at any depth, each level by name")
+{
+    Folder user;
+    for (const auto* path : { "b", "A", "Drums/kick", "Drums/Snare", "Drums/Acoustic/Room", "bass/Sub" })
+        writePreset (user.folder.getChildFile (juce::String (path) + fileExtension));
+    user.folder.getChildFile ("notes.txt").replaceWithText ("not a Preset");
+    user.folder.getChildFile ("Drums/kick.wav").replaceWithText ("not a Preset");
+    user.folder.getChildFile ("broken" + fileExtension).replaceWithText ("not XML");
+    REQUIRE (user.folder.getChildFile ("Empty").createDirectory());
+
+    const auto library = libraryIn (user.folder);
+    const auto listing = library.listing();
+    const auto factory = anyLibrary().factoryPresets();
+    // The plugin's, from its config, by name, each read from its data.
+    REQUIRE (factory.size() == 2);
+    CHECK (factory[0].name == "Bright");
+    CHECK (factory[1].name == "Warm");
+    CHECK (factory[1].preset.getChildWithProperty ("id", TestProcessor::gainId).getProperty ("value") == juce::var (3.0));
+    REQUIRE (listing.size() == factory.size() + 6);
+    for (std::size_t i = 0; i < factory.size(); ++i)
+    {
+        CHECK (listing[i].name == factory[i].name);
+        CHECK (listing[i].folder == "Factory");
+        CHECK (listing[i].preset.isEquivalentTo (factory[i].preset));
+        CHECK (listing[i].file == juce::File());
+    }
+    const std::vector userEntries (listing.begin() + static_cast<std::ptrdiff_t> (factory.size()), listing.end());
+    CHECK (namesAndFolders (userEntries)
+           == juce::StringArray ({ "User: A", "User: b", "User/bass: Sub", "User/Drums: kick", "User/Drums: Snare", "User/Drums/Acoustic: Room" }));
+    for (const auto& entry : userEntries)
+    {
+        CHECK (entry.preset.hasType (TestProcessor::stateType));
+        CHECK (entry.file.getFileNameWithoutExtension() == entry.name);
+    }
+
+    // The User Presets' files in the same order (with / between folders on every OS), a file with a Preset's name that doesn't read as one included.
+    juce::StringArray files;
+    for (const auto& file : library.userPresets())
+        files.add (file.getRelativePathFrom (user.folder).replaceCharacter ('\\', '/').upToLastOccurrenceOf (fileExtension, false, false));
+    CHECK (files == juce::StringArray ({ "A", "b", "broken", "bass/Sub", "Drums/kick", "Drums/Snare", "Drums/Acoustic/Room" }));
+}
+
+TEST_CASE ("A Preset added to the User folder on disk is listed the next time the library is read")
+{
+    Folder user;
+    const auto library = libraryIn (user.folder);
+    const auto before = library.listing().size();
+    writePreset (user.folder.getChildFile ("Vocals/Air" + fileExtension));
+    const auto after = library.listing();
+    REQUIRE (after.size() == before + 1);
+    CHECK (after.back().name == "Air");
+    CHECK (after.back().folder == "User/Vocals");
+}
+
+TEST_CASE ("Search keeps the Presets whose names contain the text, ignoring case and folder names, in browser order")
+{
+    const std::vector<PresetLibrary::Entry> listing {
+        { "Kick Tight", "Factory", {}, {} },
+        { "Snare", "User/Kicks", {}, {} },
+        { "808 KICK", "User/Drums", {}, {} },
+        { "Vocal", "User", {}, {} },
+    };
+    CHECK (namesAndFolders (PresetLibrary::search (listing, "kick")) == juce::StringArray ({ "Factory: Kick Tight", "User/Drums: 808 KICK" }));
+    CHECK (PresetLibrary::search (listing, "").size() == listing.size());
+    CHECK (PresetLibrary::search (listing, "nothing").empty());
+}
+
+TEST_CASE ("Stepping moves to the next or previous Preset in browser order, wrapping at the ends")
+{
+    const std::vector<PresetLibrary::Entry> listing {
+        { "Bright", "Factory", {}, {} },
+        { "Warm", "Factory", {}, {} },
+        { "Bright", "User", {}, {} },
+        { "Dark", "User/Mix", {}, {} },
+    };
+    CHECK (PresetLibrary::step (listing, "Warm", 1) == 2u);
+    CHECK (PresetLibrary::step (listing, "Warm", -1) == 0u);
+    CHECK (PresetLibrary::step (listing, "Dark", 1) == 0u);
+    CHECK (PresetLibrary::step (listing, "Bright", -1) == 3u);
+
+    // A name listed more than once, with no entry last loaded, steps from its first occurrence.
+    CHECK (PresetLibrary::step (listing, "Bright", 1) == 1u);
+
+    // No Loaded Preset, or one not in the library: forward to the first, back to the last.
+    for (const juce::String loaded : { "", "Elsewhere" })
+    {
+        CAPTURE (loaded);
+        CHECK (PresetLibrary::step (listing, loaded, 1) == 0u);
+        CHECK (PresetLibrary::step (listing, loaded, -1) == 3u);
+    }
+    CHECK_FALSE (PresetLibrary::step ({}, "Warm", 1).has_value());
+}
+
+TEST_CASE ("Stepping from the entry last loaded walks the whole library, though Preset names repeat")
+{
+    const std::vector<PresetLibrary::Entry> listing {
+        { "Bright", "Factory", {}, {} },
+        { "Warm", "Factory", {}, {} },
+        { "Bright", "User", {}, {} },
+        { "Kick", "User/Drums", {}, {} },
+        { "Kick", "User/Mix", {}, {} },
+        { "Dark", "User/Mix", {}, {} },
+    };
+    for (const int by : { 1, -1 })
+    {
+        CAPTURE (by);
+        std::set<std::size_t> visited;
+        std::size_t at = 0;
+        for (std::size_t press = 0; press < listing.size(); ++press)
+        {
+            const auto& lastLoaded = listing[at];
+            const auto next = PresetLibrary::step (listing, lastLoaded.name, by, &lastLoaded);
+            REQUIRE (next.has_value());
+            at = *next;
+            visited.insert (at);
+        }
+        CHECK (visited.size() == listing.size());
+        CHECK (at == 0u);
+    }
+
+    // The entry last loaded no longer named as the Loaded Preset (after an undo, an A/B switch or a
+    // file load): from the Loaded Preset's first entry.
+    CHECK (PresetLibrary::step (listing, "Bright", 1, &listing[3]) == 1u);
+    CHECK (PresetLibrary::find (listing, "Kick", &listing[4]) == 4u);
+    CHECK (PresetLibrary::find (listing, "Kick", &listing[0]) == 3u);
+    CHECK (PresetLibrary::find (listing, "Kick") == 3u);
+    CHECK_FALSE (PresetLibrary::find (listing, "Elsewhere").has_value());
+}
+
+TEST_CASE ("The browser's folders are Factory, User and each User subfolder, nested ones deeper, each with the Presets directly in it")
+{
+    const std::vector<PresetLibrary::Entry> listing {
+        { "Bright", "Factory", {}, {} },
+        { "Warm", "Factory", {}, {} },
+        { "Sub", "User/bass", {}, {} },
+        { "Kick", "User/Drums", {}, {} },
+        { "Room", "User/Drums/Acoustic/Large", {}, {} },
+        { "Hall", "User/Drums/Acoustic/Large", {}, {} },
+    };
+    juce::StringArray shown;
+    for (const auto& folder : PresetLibrary::folders (listing))
+        shown.add (juce::String::repeatedString ("  ", folder.depth) + folder.name + " " + juce::String (folder.count) + " (" + folder.path + ")");
+    // User with none of its own, and Acoustic holding only a subfolder, are listed all the same.
+    CHECK (shown
+           == juce::StringArray ({ "Factory 2 (Factory)",
+                                   "User 0 (User)",
+                                   "  bass 1 (User/bass)",
+                                   "  Drums 1 (User/Drums)",
+                                   "    Acoustic 0 (User/Drums/Acoustic)",
+                                   "      Large 2 (User/Drums/Acoustic/Large)" }));
+
+    // With no Presets at all: Factory and User, empty.
+    CHECK (PresetLibrary::folders ({}).size() == 2u);
+}
+
+TEST_CASE ("The browser's folders include each User subfolder on disk that holds no Presets, in browser order")
+{
+    Folder user;
+    for (const auto* path : { "Drums/Kick", "bass/Sub" })
+        writePreset (user.folder.getChildFile (juce::String (path) + fileExtension));
+    for (const auto* path : { "Empty", "Drums/Acoustic/Large", "Drums/Brushes" })
+        REQUIRE (user.folder.getChildFile (path).createDirectory());
+
+    const auto library = libraryIn (user.folder);
+    CHECK (library.userSubfolders()
+           == std::vector<juce::String> { "User/bass", "User/Drums", "User/Drums/Acoustic", "User/Drums/Acoustic/Large", "User/Drums/Brushes", "User/Empty" });
+    juce::StringArray shown;
+    for (const auto& folder : PresetLibrary::folders (library.listing(), library.userSubfolders()))
+        shown.add (juce::String::repeatedString ("  ", folder.depth) + folder.name + " " + juce::String (folder.count));
+    shown.remove (0); // Factory
+    CHECK (shown
+           == juce::StringArray ({ "User 0", "  bass 1", "  Drums 1", "    Acoustic 0", "      Large 0", "    Brushes 0", "  Empty 0" }));
+
+    // No User folder yet: no subfolders.
+    CHECK (libraryIn (user.folder.getChildFile ("Missing")).userSubfolders().empty());
+}

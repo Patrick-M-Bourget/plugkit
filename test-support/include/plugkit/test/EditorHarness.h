@@ -2,7 +2,8 @@
 
 // Copied from eq1's tests/plugin/EditorHarness.h (eq1 at dbb1127), its screenshots folder named by the plugin's
 // PLUGKIT_HARNESS_VAR_PREFIX, and OpenEditor a template over the plugin's processor, without eq1's EQ display helpers,
-// which eq1's subclass of it keeps; listed in eq1#231.
+// which eq1's subclass of it keeps, and firstParameterOutOfRange taking an infinity a range ends at as in range;
+// listed in eq1#231.
 
 #include "plugkit/ui/EditorTick.h"
 #include "plugkit/ui/staple/controls/Tween.h"
@@ -354,7 +355,8 @@ inline void restoreState (juce::AudioProcessor& processor, const juce::XmlElemen
 }
 
 // The first host parameter whose value isn't finite and in range, named with its value: its normalised
-// value within 0 to 1 and its plain one within the parameter's range. Empty when every one is.
+// value within 0 to 1 and its plain one within the parameter's range, or the infinity the range ends at (comp1's
+// Ratio, inf:1). Empty when every one is.
 inline juce::String firstParameterOutOfRange (juce::AudioProcessor& processor)
 {
     for (auto* p : processor.getParameters())
@@ -367,7 +369,8 @@ inline juce::String firstParameterOutOfRange (juce::AudioProcessor& processor)
             return ranged->getParameterID() + ": normalised " + juce::String (normalised);
         const float plain = ranged->convertFrom0to1 (normalised);
         const auto& range = ranged->getNormalisableRange();
-        if (! std::isfinite (plain) || plain < range.start || plain > range.end)
+        const bool rangeEnd = std::isinf (plain) && (juce::exactlyEqual (plain, range.start) || juce::exactlyEqual (plain, range.end));
+        if ((! std::isfinite (plain) && ! rangeEnd) || plain < range.start || plain > range.end)
             return ranged->getParameterID() + ": " + juce::String (plain) + " outside " + juce::String (range.start) + " to " + juce::String (range.end);
     }
     return {};

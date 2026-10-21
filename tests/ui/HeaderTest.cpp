@@ -1,0 +1,213 @@
+// Copied from eq1's tests/plugin/HeaderTest.cpp (eq1 at dbb1127), its cases on the Preset group (PresetBar), the
+// Modified dot, Copy, A/B Compare and Undo and Redo (CompareGroup), against plugkit's test editor (TestProcessor.h).
+// Copy's and Copied's case checks that they end at the same x, not at eq1's header's (1170 px). The wordmark's and
+// the Preset group's centring cases are eq1's header layout, and stay in eq1.
+
+#include "TestProcessor.h"
+#include "plugkit/test/EditorHarness.h"
+#include "plugkit/ui/CompareGroup.h"
+#include "plugkit/ui/PresetBar.h"
+#include "plugkit/ui/staple/Tokens.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+using plugkit::test::TestProcessor;
+using plugkit::ui::CompareSide;
+namespace colour = staple::tokens::colour;
+
+namespace
+{
+
+struct Header : harness::OpenEditor<TestProcessor>
+{
+    plugkit::ui::Session& session = processor.sessionState();
+
+    template <typename T = juce::Button>
+    T& titled (const juce::String& title)
+    {
+        auto found = findAll<T> ([&title] (T& c) { return c.getTitle() == title; });
+        if (found.empty())
+            FAIL ("Nothing is titled " << title);
+        return *found.front();
+    }
+
+    plugkit::ui::PresetNameButton& presets() { return titled<plugkit::ui::PresetNameButton> ("Presets"); }
+    plugkit::ui::CompareButton& compare() { return titled<plugkit::ui::CompareButton> ("A/B Compare"); }
+    juce::Button& copy() { return *findAll<juce::Button> ([] (juce::Button& b) { return b.getName() == "Copy"; }).front(); }
+
+    // Where c paints, as runs of columns [start, end) in its own px, from a render at 4x.
+    static std::vector<juce::Range<float>> inkRuns (juce::Component& c)
+    {
+        constexpr float scale = 4.0f;
+        const auto image = c.createComponentSnapshot (c.getLocalBounds(), true, scale);
+        const juce::Image::BitmapData pixels (image, juce::Image::BitmapData::readOnly);
+        std::vector<juce::Range<float>> runs;
+        int start = -1;
+        for (int x = 0; x <= image.getWidth(); ++x)
+        {
+            bool ink = false;
+            for (int y = 0; x < image.getWidth() && y < image.getHeight() && ! ink; ++y)
+                ink = pixels.getPixelColour (x, y).getFloatAlpha() > 0.25f;
+            if (ink && start < 0)
+                start = x;
+            else if (! ink && start >= 0)
+            {
+                runs.push_back ({ static_cast<float> (start) / scale, static_cast<float> (x) / scale });
+                start = -1;
+            }
+        }
+        return runs;
+    }
+
+    // Where c's painting ends, in the editor's px.
+    float inkRight (juce::Component& c)
+    {
+        const auto runs = inkRuns (c);
+        REQUIRE_FALSE (runs.empty());
+        return static_cast<float> (editor->getLocalPoint (&c, juce::Point<int>()).x) + runs.back().getEnd();
+    }
+
+    // Settings saved as a Preset, as the Presets bar would load them.
+    void loadPreset (const juce::String& name)
+    {
+        set (TestProcessor::bypassId, 1.0f);
+        session.loadPreset (session.presetState(), name);
+        settle (300);
+    }
+};
+
+} // namespace
+
+TEST_CASE ("With no Loaded Preset the name reads No Preset in text3; a Modified side shows the dot")
+{
+    Header host;
+    CHECK (host.presets().getButtonText() == "No Preset");
+    CHECK (host.presets().nameInk() == colour::text3);
+    CHECK_FALSE (host.presets().showsModified());
+
+    host.loadPreset ("Warm Vocal");
+    CHECK (host.presets().getButtonText() == "Warm Vocal");
+    CHECK (host.presets().getTooltip() == "Warm Vocal");
+    CHECK (host.presets().nameInk() == colour::text1);
+    CHECK_FALSE (host.presets().showsModified());
+
+    host.set (TestProcessor::gainId, 15.0f);
+    host.settle (300);
+    CHECK (host.presets().showsModified());
+    CHECK (host.presets().getButtonText() == "Warm Vocal"); // no *
+
+    host.set (TestProcessor::gainId, 0.0f);
+    host.settle (300);
+    CHECK_FALSE (host.presets().showsModified());
+}
+
+TEST_CASE ("The Modified dot sits 14 px after the Preset name")
+{
+    Header host;
+    host.loadPreset ("Warm Vocal");
+    host.set (TestProcessor::gainId, 15.0f);
+    host.settle (300);
+    REQUIRE (host.presets().showsModified());
+    const auto runs = Header::inkRuns (host.presets());
+    REQUIRE (runs.size() >= 2);
+    // The dot is the last run; the name's last glyph the one before it.
+    const auto dot = runs.back(), name = runs[runs.size() - 2];
+    CHECK_THAT (dot.getLength(), Catch::Matchers::WithinAbs (5.0, 1.0));
+    CHECK_THAT (dot.getStart() - name.getEnd(), Catch::Matchers::WithinAbs (14.0, 1.0));
+}
+
+TEST_CASE ("Copy and Copied both end at the same x, and nothing in the group moves between them")
+{
+    Header host;
+    host.settle (300);
+    const auto copyBounds = host.copy().getBounds(), compareBounds = host.compare().getBounds();
+    const float copyRight = host.inkRight (host.copy());
+
+    host.copy().onClick();
+    host.settle (100);
+    REQUIRE (host.copy().getButtonText() == "Copied");
+    CHECK_THAT (host.inkRight (host.copy()), Catch::Matchers::WithinAbs (copyRight, 1.0));
+    CHECK (host.copy().getBounds() == copyBounds);
+    CHECK (host.compare().getBounds() == compareBounds);
+}
+
+TEST_CASE ("Copy's tooltip names the direction, and it reads Copied for 1 s after a click")
+{
+    Header host;
+    CHECK (host.copy().getTitle() == "Copy A to B");
+    CHECK (host.copy().getTooltip() == "Copy A to B");
+    host.session.selectCompareSide (CompareSide::B);
+    host.settle (300);
+    CHECK (host.copy().getTooltip() == "Copy B to A");
+    CHECK (host.copy().getTitle() == "Copy B to A");
+
+    host.set (TestProcessor::gainId, 15.0f);
+    host.copy().onClick();
+    host.settle (100);
+    CHECK (host.copy().getButtonText() == "Copied");
+    host.session.selectCompareSide (CompareSide::A);
+    CHECK_THAT (host.value (TestProcessor::gainId), Catch::Matchers::WithinAbs (15.0, 1.0e-4));
+    host.settle (600);
+    CHECK (host.copy().getButtonText() == "Copied");
+    host.settle (500);
+    CHECK (host.copy().getButtonText() == "Copy");
+}
+
+TEST_CASE ("The A/B Compare button switches sides as one undo step, its active letter lit")
+{
+    Header host;
+    auto& history = host.processor.editHistory();
+    host.settle (300);
+    CHECK (host.compare().letterInk (CompareSide::A) == colour::text1);
+    CHECK (host.compare().letterInk (CompareSide::B) == colour::text4);
+
+    const int steps = history.undoSteps();
+    host.compare().onClick();
+    host.settleAnimations (300);
+    CHECK (host.session.compareSide() == CompareSide::B);
+    CHECK (history.undoSteps() == steps + 1);
+    CHECK (host.compare().letterInk (CompareSide::A) == colour::text4);
+    CHECK (host.compare().letterInk (CompareSide::B) == colour::text1);
+
+    host.titled ("Undo").onClick();
+    host.settleAnimations (300);
+    CHECK (host.session.compareSide() == CompareSide::A);
+    CHECK (host.compare().letterInk (CompareSide::A) == colour::text1);
+}
+
+TEST_CASE ("Undo and Redo are disabled when there is nothing to undo or redo")
+{
+    Header host;
+    CHECK_FALSE (host.titled ("Undo").isEnabled());
+    CHECK_FALSE (host.titled ("Redo").isEnabled());
+    host.parameter (TestProcessor::gainId).beginChangeGesture();
+    host.set (TestProcessor::gainId, 3.0f);
+    host.parameter (TestProcessor::gainId).endChangeGesture();
+    host.settle (300);
+    CHECK (host.titled ("Undo").isEnabled());
+    CHECK_FALSE (host.titled ("Redo").isEnabled());
+    host.titled ("Undo").onClick();
+    host.settle (100);
+    CHECK_FALSE (host.titled ("Undo").isEnabled());
+    CHECK (host.titled ("Redo").isEnabled());
+}
+
+// Renders the test editor's header for checking by hand against the prototype (harness::writeSnapshot):
+// header-no-preset and header-modified-copied, each the window's top at 2x.
+TEST_CASE ("Header snapshots: no Loaded Preset, and Modified on B just after Copy", "[.screens]")
+{
+    Header host;
+    host.settle (300);
+    const auto write = [&] (const char* name) {
+        harness::writeSnapshot (*host.editor, juce::String ("header-") + name, host.editor->getLocalBounds().removeFromTop (52));
+    };
+    write ("no-preset");
+    host.loadPreset ("Warm Vocal Presence");
+    host.compare().onClick();
+    host.set (TestProcessor::gainId, 3.0f);
+    host.settleAnimations (300);
+    host.copy().onClick();
+    host.settle (100);
+    write ("modified-copied");
+}

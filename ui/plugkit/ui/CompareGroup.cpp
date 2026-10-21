@@ -1,0 +1,197 @@
+// New in plugkit, lifted from eq1's plugin/HeaderBar.cpp (eq1 at dbb1127): CompareButton as it is there, and
+// HeaderBar's Undo, Redo, A/B Compare and Copy, their layout and their following of the side and the undo history,
+// as CompareGroup, taking the Session.
+
+#include "CompareGroup.h"
+
+#include "Accessibility.h"
+#include "Session.h"
+#include "staple/Fonts.h"
+#include "staple/Light.h"
+
+namespace plugkit::ui
+{
+
+namespace
+{
+namespace colour = staple::tokens::colour;
+namespace size = staple::tokens::size;
+
+constexpr int buttonGap = 4, compareMargin = 4;
+constexpr int iconButtonSize = 32, chipHeight = 32, chipPadding = staple::tokens::header::chipPadding;
+
+juce::Font letterFont() { return staple::font (size::fs4, staple::Weight::semiBold).withExtraKerningFactor (0.02f); }
+juce::Font slashFont() { return staple::font (size::fs4, staple::Weight::regular).withExtraKerningFactor (0.02f); }
+
+CompareSide otherSide (CompareSide side) { return side == CompareSide::A ? CompareSide::B : CompareSide::A; }
+juce::String letter (CompareSide side) { return side == CompareSide::A ? "A" : "B"; }
+} // namespace
+
+CompareButton::CompareButton() : staple::TextChip ({}, Look::plain, size::fs4)
+{
+    setName ("A/B Compare");
+    setTitle ("A/B Compare");
+    change.apply = [this] (float) { repaint(); };
+}
+
+void CompareButton::showSide (CompareSide newSide)
+{
+    if (newSide == side)
+        return;
+    previousSide = side;
+    side = newSide;
+    setTooltip ("Switch to " + letter (otherSide (side)));
+    change.jump (0.0f);
+    change.towards (1.0f);
+}
+
+juce::Colour CompareButton::letterInk (CompareSide l) const
+{
+    const auto inkOn = [l] (CompareSide s) { return l == s ? colour::text1 : colour::text4; };
+    return inkOn (previousSide).interpolatedWith (inkOn (side), change.value());
+}
+
+int CompareButton::getIdealWidth() const
+{
+    return staple::textWidth (letterFont(), "AB") + staple::textWidth (slashFont(), "/") + 2 + 2 * chipPadding;
+}
+
+void CompareButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    // The hover box, with no text of its own.
+    staple::TextChip::paintButton (g, highlighted, down);
+    const float alpha = staple::enabledAlpha (*this);
+    const int a = staple::textWidth (letterFont(), "A"), slash = staple::textWidth (slashFont(), "/"), b = staple::textWidth (letterFont(), "B");
+    auto area = getLocalBounds().withSizeKeepingCentre (a + slash + b + 2, getHeight());
+    g.setFont (letterFont());
+    g.setColour (letterInk (CompareSide::A).withMultipliedAlpha (alpha));
+    g.drawText ("A", area.removeFromLeft (a), juce::Justification::centred, false);
+    area.removeFromLeft (1);
+    g.setFont (slashFont());
+    g.setColour (colour::text4.withMultipliedAlpha (alpha));
+    g.drawText ("/", area.removeFromLeft (slash), juce::Justification::centred, false);
+    area.removeFromLeft (1);
+    g.setFont (letterFont());
+    g.setColour (letterInk (CompareSide::B).withMultipliedAlpha (alpha));
+    g.drawText ("B", area.removeFromLeft (b), juce::Justification::centred, false);
+}
+
+std::unique_ptr<juce::AccessibilityHandler> CompareButton::createAccessibilityHandler()
+{
+    return accessibility::handler (
+        *this, juce::AccessibilityRole::button, [this] { return letter (side); }, [this] { triggerClick(); });
+}
+
+CompareGroup::CompareGroup (Session& s) : EditorTick::Client (static_cast<juce::Component&> (*this)), session (s)
+{
+    undoButton.setTitle ("Undo");
+    redoButton.setTitle ("Redo");
+    undoButton.onClick = [this] { undo(); };
+    redoButton.onClick = [this] { redo(); };
+    for (auto* button : { &undoButton, &redoButton })
+    {
+        button->setIconSize (18.0f);
+        button->setRestColour (colour::text1);
+    }
+    compareButton.setTooltip ("Switch to B");
+    compareButton.onClick = [this] {
+        session.selectCompareSide (otherSide (session.compareSide()));
+        edited();
+    };
+    // Wide enough for "Copied", its label to the right, so A/B never moves when the label changes.
+    copyButton.setInk (colour::text1);
+    copyButton.setPadding (chipPadding, chipPadding);
+    copyButton.setTextJustification (juce::Justification::centredRight);
+    copyButton.setButtonText ("Copied");
+    copyWidth = copyButton.getIdealWidth();
+    copyButton.setButtonText ("Copy");
+    copyButton.onClick = [this] { copyToOther(); };
+
+    int order = 0;
+    for (juce::Button* button : std::initializer_list<juce::Button*> { &undoButton, &redoButton, &compareButton, &copyButton })
+    {
+        // Tab reaches them, but a click leaves focus where it was, so Delete still reaches the display.
+        button->setMouseClickGrabsKeyboardFocus (false);
+        addAndMakeVisible (*button);
+        // Left to right.
+        button->setExplicitFocusOrder (++order);
+    }
+    showSide();
+    showUndoState();
+}
+
+void CompareGroup::tick (double)
+{
+    if (copiedUntil != 0 && juce::Time::getMillisecondCounter() >= copiedUntil)
+    {
+        copiedUntil = 0;
+        copyButton.setButtonText ("Copy");
+    }
+    showSide();
+    showUndoState();
+}
+
+void CompareGroup::showSide()
+{
+    const auto side = session.compareSide();
+    compareButton.showSide (side);
+    const auto direction = "Copy " + letter (side) + " to " + letter (otherSide (side));
+    if (copyButton.getTitle() == direction)
+        return;
+    copyButton.setTooltip (direction);
+    copyButton.setTitle (direction);
+}
+
+void CompareGroup::copyToOther()
+{
+    session.copyToOther();
+    copyButton.setButtonText ("Copied");
+    copiedUntil = juce::Time::getMillisecondCounter() + 1000;
+    edited();
+}
+
+void CompareGroup::edited()
+{
+    showSide();
+    showUndoState();
+}
+
+void CompareGroup::undo()
+{
+    session.editHistory().undo();
+    edited();
+}
+
+void CompareGroup::redo()
+{
+    session.editHistory().redo();
+    edited();
+}
+
+void CompareGroup::showUndoState()
+{
+    undoButton.setEnabled (session.editHistory().canUndo());
+    redoButton.setEnabled (session.editHistory().canRedo());
+}
+
+int CompareGroup::getIdealWidth() const
+{
+    return 2 * iconButtonSize + buttonGap + compareMargin + buttonGap + compareButton.getIdealWidth() + buttonGap + copyWidth;
+}
+
+void CompareGroup::resized()
+{
+    auto row = getLocalBounds();
+    const auto place = [&row] (juce::Component& c, int width, int height) {
+        c.setBounds (row.removeFromRight (width).withSizeKeepingCentre (width, height));
+    };
+    place (copyButton, copyWidth, chipHeight);
+    row.removeFromRight (buttonGap);
+    place (compareButton, compareButton.getIdealWidth(), chipHeight);
+    row.removeFromRight (compareMargin + buttonGap);
+    place (redoButton, iconButtonSize, iconButtonSize);
+    row.removeFromRight (buttonGap);
+    place (undoButton, iconButtonSize, iconButtonSize);
+}
+
+} // namespace plugkit::ui

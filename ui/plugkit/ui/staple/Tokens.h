@@ -1,8 +1,9 @@
 #pragma once
 
 // Copied from eq1's plugin/staple/Tokens.h (eq1 at dbb1127), without eq1's own tokens: the Band palette, the window's
-// and its areas' layout (the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, header, hoverCard and
-// curve namespaces, which eq1 keeps beside its own components; listed in eq1#231.
+// and its areas' layout (the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, hoverCard and curve
+// namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit has the
+// two tokens plugkit-ui's Preset and A/B widgets read.
 
 // Staple's design tokens: the values in docs/staple-handoff/tokens.json and HANDOFF.md's visual spec,
 // kept by hand. The only place in plugkit-ui a colour is written as a number.
@@ -163,4 +164,13 @@ namespace motion
     constexpr float hoverBrightness = 1.18f, pressedBrightness = 1.3f, disabledAlpha = 0.35f;
     constexpr float bypassedAlpha = 0.38f; // a Bypassed Band's Band panel and Hover Card values
 } // namespace motion
+
+// The header (HANDOFF.md §5.6), in px: the padding either side of its text buttons' text (A/B Compare,
+// Copy), and the gap between the Preset name and its Modified dot (the button's 8 px gap and the dot's
+// 6 px margin).
+namespace header
+{
+    constexpr int chipPadding = 10;
+    constexpr float modifiedDotGap = 14.0f;
+} // namespace header
 } // namespace staple::tokens
