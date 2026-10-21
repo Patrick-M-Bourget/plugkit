@@ -1,5 +1,5 @@
-# plugkit-ui: the JUCE layer a plugin's Plugin Shell shares, copied from eq1's plugin/ (eq1 at dbb1127); each file is
-# listed in eq1#231. Staple, the UI kit, keeps its namespace staple; the rest is plugkit::ui.
+# plugkit-ui: the JUCE layer a plugin's Plugin Shell shares, copied from eq1's plugin/ (eq1 at dbb1127); each file names
+# its eq1 source in its header. Staple, the UI kit, keeps its namespace staple; the rest is plugkit::ui.
 #
 # Each plugin pins JUCE. plugkit-ui links the juce:: targets its consumer has already fetched, so the plugin's JUCE
 # is the one built, and never fetches JUCE itself when they exist: a plugin fetches JUCE before plugkit. A consumer
@@ -36,9 +36,15 @@ add_library(plugkit-ui INTERFACE)
 add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Accessibility.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/AnalyzerSpectrum.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/OutputMeter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/AnalyzerLayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/DisplayGeometry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/EdgeFadeLayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/display/GridLayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Fonts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Icons.cpp
@@ -59,4 +65,5 @@ target_sources(plugkit-ui INTERFACE
 )
 target_include_directories(plugkit-ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(plugkit-ui INTERFACE cxx_std_20)
-target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts juce::juce_gui_basics juce::juce_audio_processors)
+# juce_dsp for the Analyzer's FFT: a consumer that fetched JUCE has it. plugkit-dsp for the Output Level.
+target_link_libraries(plugkit-ui INTERFACE plugkit-ui-fonts plugkit::dsp juce::juce_gui_basics juce::juce_audio_processors juce::juce_dsp)

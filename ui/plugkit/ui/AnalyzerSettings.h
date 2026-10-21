@@ -1,0 +1,27 @@
+#pragma once
+
+// Copied from eq1's plugin/AnalyzerSettings.h (eq1 at dbb1127), in namespace plugkit::ui.
+
+#include "AnalyzerSpectrum.h"
+
+namespace plugkit::ui
+{
+
+// What the Analyzer shows and how. Saved with the session, not in Presets.
+struct AnalyzerSettings
+{
+    bool showPreEq = true;
+    bool showPostEq = true;
+    bool showSidechain = false; // off until asked for: most sessions have nothing on it
+    int rangeDb = 90; // 60, 90 or 120 dB shown below the top of the display
+    AnalyzerSpeed speed = AnalyzerSpeed::medium;
+    AnalyzerResolution resolution = AnalyzerResolution::medium;
+    double tiltDbPerOctave = 4.5; // Analyzer Tilt, 0 to 6 dB/oct around 1 kHz
+    bool peakHold = true; // Peak Hold over the post-EQ spectrum, or the pre-EQ one when only it is shown
+
+    JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wfloat-equal")
+    bool operator== (const AnalyzerSettings&) const = default;
+    JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+};
+
+} // namespace plugkit::ui
