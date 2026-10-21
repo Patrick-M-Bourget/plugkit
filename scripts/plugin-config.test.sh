@@ -116,6 +116,12 @@ repo=$(plugin "${base[@]/PLUGIN_DIR=plugin/}")
 echo 'g.setColour (juce::Colours::white);' > "$repo/engine/Editor.cpp"
 expect pass "Skipped the colours check: no PLUGIN_DIR" "a library with no Plugin Shell leaves PLUGIN_DIR out, and docs skips colours, saying so" "$repo" docs
 
+# Nothing is built here, so the stage fails; its heading is what's checked.
+repo=$(plugin "${base[@]}")
+expect fail "== Engine and Plugin Shell tests" "test is headed as a plugin's CI step names it by default" "$repo" test
+repo=$(plugin "${base[@]}" 'TEST_STEP="demo-dsp tests"')
+expect fail "== demo-dsp tests" "TEST_STEP heads the test stage" "$repo" test
+
 repo=$(plugin "${base[@]}")
 expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says which" "$repo" validate
 

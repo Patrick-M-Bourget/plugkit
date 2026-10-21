@@ -18,7 +18,7 @@
 #                               docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
-#   scripts/check.sh test       Engine and Plugin Shell tests
+#   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
 #   scripts/check.sh focus <re> build the tests and run those whose names match the regex; none matching fails
 #   scripts/check.sh screens <dir>  build the tests and render every hidden [.screens] test into <dir> as PNGs, to
 #                               compare with the rendered design prototype
@@ -313,7 +313,7 @@ build() {
 # In parallel, as the pre-commit hook runs them: the CPU budget, which needs the machine to itself,
 # is its own step.
 run_tests() {
-    step "Engine and Plugin Shell tests"
+    step "${TEST_STEP:-Engine and Plugin Shell tests}"
     ctest --test-dir "$BUILD_DIR" -C Release -j 8 --output-on-failure
 }
 
