@@ -4,7 +4,11 @@ The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [
 
 - **`plugkit-dsp`:** plain C++ with no JUCE. It holds the Smoother and the 16-sample run grid, the matched filter designs, Placement, and LatestValue, the lock-free hand-off of the newest settings from the UI thread to the audio thread.
 - **`plugkit::test_support`:** for a plugin's test executables only, so `plugkit-dsp` stays free of it. It holds AllocationGuard (`plugkit/test/AllocationGuard.h`), which counts the heap allocations its thread makes while it is alive, and the bytes they hold, for realtime-safety and footprint tests. Linking it, `target_link_libraries(<name>_engine_tests PRIVATE plugkit::test_support)`, replaces operator new and delete in that executable.
-- **`plugkit-ui`** (`plugkit::ui`): the JUCE layer. It holds Staple, eq1's UI kit (namespace `staple`: tokens, the Manrope font, icons, the LookAndFeel and the controls), and in namespace `plugkit::ui` KeyboardSlider, `accessibility::spokenValue`, ValueText, `showMenu` and EditorTick, the editor's one tick. The meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) and the Plugin Shell's session state ([comp1#37](https://github.com/Patrick-M-Bourget/comp1/issues/37)) come next. See "Linking plugkit-ui".
+- **`plugkit-ui`** (`plugkit::ui`): the JUCE layer. It holds Staple, eq1's UI kit (namespace `staple`: tokens, the Manrope font, icons, the LookAndFeel and the controls), and in namespace `plugkit::ui`:
+  - KeyboardSlider, KeyboardControl (the editor-wide keys), `accessibility::spokenValue`, ValueText, `showMenu` and EditorTick, the editor's one tick;
+  - the Plugin Shell's session state, `Session`: the undo history (EditHistory), A/B Compare, the Preset Library and the window's size and UI Scale, with the rules for saving and restoring them, and the widgets that drive it (PresetBar and its PresetBrowser, CompareGroup's Undo, Redo, A/B Compare and Copy, and UiScaleMenu). See "Session state".
+
+  The meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) come next. See "Linking plugkit-ui".
 - **`plugkit::editor_harness`:** eq1's editor test harness (`plugkit/test/EditorHarness.h`, namespace `harness`), for a plugin's editor tests. See "Linking plugkit-ui".
 
 The CI scripts and the check harness live here too.
@@ -31,6 +35,42 @@ The CI scripts and the check harness live here too.
 
   `harness::OpenEditor<Processor>` opens the plugin's editor in a window of its own; a plugin's subclass of it adds helpers for its own displays. The editor must be an `EditorTick::Host`. The harness lives in plugkit's checkout, not the plugin's tests, so a plugin's `plugkit.conf` leaves `EDITOR_HARNESS` out.
 - **Tokens:** Staple's tokens are the kit's (`plugkit/ui/staple/Tokens.h`). A plugin's own colours and sizes live in its own tokens header, which its `TOKENS_DIR` names.
+
+## Session state
+
+A plugin's processor owns one `plugkit::ui::Session`, built after its parameters from the processor, its `AudioProcessorValueTreeState` and a `Session::Config`:
+
+- **`isPresetSetting`:** the parameters a Preset and each A/B side hold; by default every one but `global_bypass`.
+- **`productName`:** names the User Preset folder (`Documents/<name>/Presets`) and the per-user settings' folder and lock.
+- **`presetFileExtension`** and **`presetType`:** a Preset file's extension, and its root type, the saved state's type.
+- **`factoryPresets`:** name and data pairs, from the plugin's own `juce_add_binary_data`.
+- **`stateVersion`** and **`migrate`:** the saved format's version and the plugin's migration to it. A plugin adding A/B Compare appends `ABCompare::initialState()` in that version's step.
+- **`window`:** the window's default logical size and its limits.
+- **`presetFolder`** and **`userSettingsFile`:** where User Presets and the per-user settings live; a shipped plugin passes `UserSettings::defaultFile (productName)`, and tests leave both empty or point them at a temporary folder.
+
+The processor saves and restores through it:
+
+```cpp
+void getStateInformation (juce::MemoryBlock& destData) override
+{
+    auto state = session.saved(); // the parameters, A/B Compare, the version, window size and UI Scale
+    state.setProperty ("zoom", zoom, nullptr); // and the plugin's own view
+    if (auto xml = state.createXml())
+        copyXmlToBinary (*xml, destData);
+}
+
+void setStateInformation (const void* data, int size) override
+{
+    clearTransientState(); // the plugin's own, such as its Clip Lights or Solo
+    if (auto xml = getXmlFromBinary (data, size))
+        session.restore (juce::ValueTree::fromXml (*xml), [this] (juce::ValueTree& state) {
+            zoom = state.getProperty ("zoom", 1); // reads the plugin's view, and takes it off
+            state.removeProperty ("zoom", nullptr);
+        });
+}
+```
+
+`restore` runs from any thread: it migrates, reads the window's size and UI Scale, calls the view reader, restores A/B Compare, restores every parameter (a missing one at its default, a non-finite value at its default unless it is an infinity the range ends at, an out-of-range one at the nearer end, and unknown content kept and saved again as it was), and empties the undo history. The editor gives its widgets the session, and its editor-wide keys its `editHistory()`.
 
 ## The check harness
 
