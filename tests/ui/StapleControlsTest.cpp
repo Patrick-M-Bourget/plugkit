@@ -1,0 +1,946 @@
+// Copied from eq1's tests/plugin/StapleControlsTest.cpp (eq1 at dbb1127), against plugkit's test processor: its
+// controls attach to its parameters, undo steps are counted (TestProcessor.h's EditSteps) and not undone, and a
+// token colour stands in for a Band's; listed in eq1#231.
+
+#include "TestProcessor.h"
+#include "plugkit/test/EditorHarness.h"
+#include "plugkit/ui/staple/Fonts.h"
+#include "plugkit/ui/staple/LookAndFeel.h"
+#include "plugkit/ui/staple/controls/EdgeSelector.h"
+#include "plugkit/ui/staple/controls/IconButton.h"
+#include "plugkit/ui/staple/controls/Knob.h"
+#include "plugkit/ui/staple/controls/KnobTooltip.h"
+#include "plugkit/ui/staple/controls/ParseValue.h"
+#include "plugkit/ui/staple/controls/Popover.h"
+#include "plugkit/ui/staple/controls/TextChip.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <memory>
+
+using Catch::Matchers::WithinAbs;
+
+namespace
+{
+
+using Attachment = juce::AudioProcessorValueTreeState;
+using Processor = plugkit::test::TestProcessor;
+
+// The kit's controls in a window of their own, drawn with Staple's LookAndFeel and attached to the test processor's
+// parameters as an editor attaches them. Mouse events go straight to the control under test.
+struct Kit
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    plugkit::test::TestProcessor processor;
+    plugkit::test::EditSteps history { processor };
+    staple::LookAndFeel lookAndFeel;
+    juce::Component window;
+
+    Kit()
+    {
+        window.setLookAndFeel (&lookAndFeel);
+        window.setBounds (0, 0, 400, 300);
+        window.addToDesktop (0);
+        window.setVisible (true);
+    }
+
+    ~Kit() { window.setLookAndFeel (nullptr); }
+
+    Attachment& state() { return processor.parameterState(); }
+    float value (const juce::String& id) { return state().getRawParameterValue (id)->load(); }
+
+    template <typename T>
+    T& add (T& component, juce::Rectangle<int> bounds)
+    {
+        window.addAndMakeVisible (component);
+        component.setBounds (bounds);
+        return component;
+    }
+
+    // A press at from, a vertical drag by dy (negative is up) and a release, with mods held throughout.
+    static void drag (juce::Component& target, juce::Point<float> from, float dy, juce::ModifierKeys mods = {})
+    {
+        const auto left = mods.withFlags (juce::ModifierKeys::leftButtonModifier);
+        const auto to = from.translated (0.0f, dy);
+        target.mouseDown (harness::mouseEvent (target, from, left, from));
+        target.mouseDrag (harness::mouseEvent (target, from.translated (0.0f, dy / 2.0f), left, from));
+        target.mouseDrag (harness::mouseEvent (target, to, left, from));
+        target.mouseUp (harness::mouseEvent (target, to, mods, from));
+    }
+
+    // A press and a release at the target's centre, through Component's interface (Button's is protected).
+    static void press (juce::Component& target)
+    {
+        const auto at = target.getLocalBounds().toFloat().getCentre();
+        target.mouseDown (harness::mouseEvent (target, at, juce::ModifierKeys::leftButtonModifier, at));
+    }
+    static void release (juce::Component& target)
+    {
+        const auto at = target.getLocalBounds().toFloat().getCentre();
+        target.mouseUp (harness::mouseEvent (target, at, {}, at));
+    }
+    static void click (juce::Component& target)
+    {
+        press (target);
+        release (target);
+    }
+
+    static void doubleClick (juce::Component& target, juce::Point<float> at)
+    {
+        const juce::ModifierKeys left (juce::ModifierKeys::leftButtonModifier);
+        target.mouseDown (harness::mouseEvent (target, at, left, at));
+        target.mouseUp (harness::mouseEvent (target, at, {}, at));
+        target.mouseDown (harness::mouseEvent (target, at, left, at, 2));
+        target.mouseDoubleClick (harness::mouseEvent (target, at, left, at, 2));
+        target.mouseUp (harness::mouseEvent (target, at, {}, at, 2));
+    }
+};
+
+juce::Point<float> centreOf (juce::Component& c) { return c.getLocalBounds().toFloat().getCentre(); }
+
+double position (juce::Slider& slider) { return slider.valueToProportionOfLength (slider.getValue()); }
+
+} // namespace
+
+TEST_CASE ("A Knob's full range takes 200 px of vertical drag, 800 px with Shift, and each drag is one undo step")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::gain);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::gainId, knob);
+    kit.add (knob, { 10, 10, knob.getIdealSize(), knob.getIdealSize() });
+    REQUIRE_THAT (position (knob), WithinAbs (0.5, 1.0e-6));
+
+    kit.drag (knob, centreOf (knob), -50.0f);
+    CHECK_THAT (position (knob), WithinAbs (0.75, 1.0e-4));
+    CHECK (kit.history.count() == 1);
+
+    kit.drag (knob, centreOf (knob), 80.0f, juce::ModifierKeys::shiftModifier);
+    CHECK_THAT (position (knob), WithinAbs (0.65, 1.0e-4));
+    CHECK (kit.history.count() == 2);
+
+    // Past either end, it stops there.
+    kit.drag (knob, centreOf (knob), -400.0f);
+    CHECK_THAT (position (knob), WithinAbs (1.0, 1.0e-6));
+}
+
+TEST_CASE ("parseValue reads a typed value in its parameter's units, with or without a unit or a k")
+{
+    struct Row
+    {
+        const char* text;
+        const char* unit;
+        double expected;
+    };
+    const Row rows[] = {
+        { "1.2k", "Hz", 1200.0 },   { "1200", "Hz", 1200.0 },  { "1.2 kHz", "Hz", 1200.0 }, { "1.2KHZ", "Hz", 1200.0 },
+        { "450 Hz", "Hz", 450.0 },  { "+3", "dB", 3.0 },       { "-2.5 dB", "dB", -2.5 },   { "0.7", "", 0.7 },
+        { ".5", "", 0.5 },          { "15 ms", "ms", 15.0 },   { "1.2 s", "ms", 1200.0 },   { "1.2 s", "s", 1.2 },
+        { "15 ms", "s", 0.015 },    { " 2,5 dB ", "dB", 2.5 }, { "40 %", "%", 40.0 },
+    };
+    for (const auto& row : rows)
+    {
+        CAPTURE (row.text, row.unit);
+        const auto value = staple::parseValue (row.text, row.unit);
+        REQUIRE (value.has_value());
+        CHECK_THAT (*value, WithinAbs (row.expected, 1.0e-9));
+    }
+    // A true minus sign (U+2212), as the editor writes one.
+    const auto minus = juce::String::charToString (0x2212);
+    CHECK (staple::parseValue (minus + "2.5 dB", "dB") == -2.5);
+    CHECK (staple::parseValue (minus + "20.0 dB", "") == -20.0);
+}
+
+TEST_CASE ("parseValue reads nothing from text that isn't a number with a unit it knows")
+{
+    for (const char* text : { "", "abc", "Auto", "1.2 parsecs", "3 dB dB", "--3", "k" })
+    {
+        CAPTURE (text);
+        CHECK_FALSE (staple::parseValue (text, "dB").has_value());
+    }
+}
+
+TEST_CASE ("A double-click on a Knob resets its parameter to the default as one undo step")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::frequency);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::frequencyId, knob);
+    kit.add (knob, { 10, 10, knob.getIdealSize(), knob.getIdealSize() });
+    const float defaultFrequency = kit.value (Processor::frequencyId);
+    kit.drag (knob, centreOf (knob), -60.0f);
+    REQUIRE (kit.value (Processor::frequencyId) > defaultFrequency * 2.0f);
+    const int steps = kit.history.count();
+
+    kit.doubleClick (knob, centreOf (knob));
+    CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (defaultFrequency, 1.0e-2));
+    CHECK (kit.history.count() == steps + 1);
+}
+
+TEST_CASE ("A disabled Knob ignores drags, double-clicks and arrow keys, and shows no tooltip")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::gain);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::gainId, knob);
+    kit.add (knob, { 10, 10, knob.getIdealSize(), knob.getIdealSize() });
+    kit.processor.parameterState().getParameter (Processor::gainId)->setValueNotifyingHost (0.6f);
+    knob.setEnabled (false);
+
+    kit.drag (knob, centreOf (knob), -50.0f);
+    kit.doubleClick (knob, centreOf (knob));
+    CHECK (knob.keyPressed (juce::KeyPress (juce::KeyPress::upKey)) == false);
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    CHECK_FALSE (knob.isTooltipShown());
+    CHECK_THAT (position (knob), WithinAbs (0.6, 1.0e-4));
+    CHECK (kit.history.count() == 0);
+}
+
+TEST_CASE ("A Knob's tooltip shows its title and its value text with the unit while hovered or dragged")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::gain);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::gainId, knob);
+    knob.setTitle ("Band 4 Gain"); // its accessible name
+    knob.setTextValueSuffix (" dB");
+    kit.add (knob, { 150, 150, knob.getIdealSize(), knob.getIdealSize() });
+    knob.setValue (-11.42, juce::sendNotificationSync);
+    CHECK_FALSE (knob.isTooltipShown());
+
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    REQUIRE (knob.isTooltipShown());
+    auto& tooltip = *knob.getKnobTooltip();
+    CHECK (tooltip.getParentComponent() == &kit.window); // a child of the editor, not a window of its own
+    CHECK (tooltip.titleText() == "Band 4 Gain");
+    CHECK (tooltip.valueText() == "-11.42 dB");
+    CHECK (tooltip.getY() >= kit.window.getLocalArea (&knob, knob.getLocalBounds()).getCentreY() + 33); // below the face
+
+    // It follows a drag, and stays while the drag goes on outside the knob.
+    const auto left = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
+    const auto from = centreOf (knob);
+    knob.mouseDown (harness::mouseEvent (knob, from, left, from));
+    knob.mouseExit (harness::mouseEvent (knob, from.translated (0.0f, -200.0f), left, from));
+    knob.mouseDrag (harness::mouseEvent (knob, from.translated (0.0f, -200.0f), left, from));
+    CHECK (knob.isTooltipShown());
+    CHECK (tooltip.valueText() == "30.00 dB");
+    knob.mouseUp (harness::mouseEvent (knob, from.translated (0.0f, -200.0f), {}, from));
+    CHECK_FALSE (knob.isTooltipShown());
+}
+
+TEST_CASE ("A Knob Readout sits above its knob where there is no room below")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::small);
+    kit.add (knob, { 10, kit.window.getHeight() - knob.getIdealSize(), knob.getIdealSize(), knob.getIdealSize() });
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    REQUIRE (knob.isTooltipShown());
+    CHECK (knob.getKnobTooltip()->getBottom() <= knob.getBounds().getCentreY() - 15);
+}
+
+TEST_CASE ("A Knob Readout covers its knob's label from the label's top, and stays put while the knob is dragged")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::frequency);
+    kit.add (knob, { 150, 100, knob.getIdealSize(), knob.getIdealSize() });
+    juce::Label label ({}, "Frequency");
+    kit.add (label, { 140, knob.getBounds().getCentreY() + 40, knob.getWidth() + 20, 15 }); // lower than the face's bottom
+    knob.setLabel (&label);
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    REQUIRE (knob.isTooltipShown());
+    auto& tooltip = *knob.getKnobTooltip();
+    CHECK (tooltip.getY() == label.getY());
+    CHECK (tooltip.getBottom() >= label.getBottom());
+    CHECK (tooltip.getBounds().getCentreX() == knob.getBounds().getCentreX());
+
+    const auto shown = tooltip.getBounds();
+    const auto left = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
+    const auto from = centreOf (knob);
+    knob.mouseDown (harness::mouseEvent (knob, from, left, from));
+    knob.mouseDrag (harness::mouseEvent (knob, from.translated (0.0f, -60.0f), left, from));
+    CHECK (tooltip.getY() == shown.getY());
+    CHECK (tooltip.getBounds().getCentreX() == shown.getCentreX());
+    knob.mouseUp (harness::mouseEvent (knob, from.translated (0.0f, -60.0f), {}, from));
+}
+
+TEST_CASE ("A value typed into a Knob's tooltip commits as one undo step on Enter, and Esc cancels it")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::frequency);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::frequencyId, knob);
+    knob.setTitle ("Band 1 Frequency");
+    knob.setTextValueSuffix (" Hz");
+    kit.add (knob, { 150, 150, knob.getIdealSize(), knob.getIdealSize() });
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    auto& tooltip = *knob.getKnobTooltip();
+
+    kit.doubleClick (tooltip, centreOf (tooltip));
+    REQUIRE (tooltip.isEditing());
+    auto* field = tooltip.getEditor();
+    CHECK (field->getTitle() == "Band 1 Frequency value");
+    CHECK (field->getWantsKeyboardFocus());
+    field->setText ("1.2k");
+    field->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
+    CHECK_FALSE (tooltip.isEditing());
+    CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (1200.0, 0.5));
+    CHECK (kit.history.count() == 1);
+
+    tooltip.startEditing();
+    tooltip.getEditor()->setText ("50 Hz");
+    tooltip.getEditor()->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+    CHECK_FALSE (tooltip.isEditing());
+    CHECK_THAT (kit.value (Processor::frequencyId), WithinAbs (1200.0, 0.5));
+    CHECK (kit.history.count() == 1);
+
+    // Out of range, it stops at the end of the range.
+    tooltip.startEditing();
+    tooltip.getEditor()->setText ("90 kHz");
+    tooltip.getEditor()->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
+    CHECK_THAT (position (knob), WithinAbs (1.0, 1.0e-6));
+    CHECK (kit.history.count() == 2);
+}
+
+TEST_CASE ("A momentary IconButton is lit only while held, and reports its press and release")
+{
+    Kit kit;
+    staple::IconButton solo ("Solo", staple::Icon::headphones);
+    solo.setMomentary (true);
+    solo.setLitColour (staple::tokens::colour::curveMain);
+    int presses = 0, releases = 0;
+    solo.onPress = [&] { ++presses; };
+    solo.onRelease = [&] { ++releases; };
+    kit.add (solo, { 10, 10, 24, 24 });
+    CHECK_FALSE (solo.isLit());
+
+    Kit::press (solo);
+    CHECK (solo.isLit());
+    CHECK (presses == 1);
+    CHECK (releases == 0);
+    Kit::release (solo);
+    CHECK_FALSE (solo.isLit());
+    CHECK (presses == 1);
+    CHECK (releases == 1);
+    CHECK_FALSE (solo.getToggleState()); // held, never toggled
+}
+
+TEST_CASE ("An IconButton attached as a toggle is lit while on, or shows Off for a Bypass-style power button")
+{
+    Kit kit;
+    staple::IconButton phase ("Phase Invert", staple::Icon::phaseInvert);
+    phase.setClickingTogglesState (true);
+    Attachment::ButtonAttachment phaseAttachment (kit.state(), Processor::invertId, phase);
+    staple::IconButton bypass ("Bypass", staple::Icon::power);
+    bypass.setOffLook (true);
+    bypass.setClickingTogglesState (true);
+    Attachment::ButtonAttachment bypassAttachment (kit.state(), Processor::bypassId, bypass);
+    kit.add (phase, { 10, 10, 24, 24 });
+    kit.add (bypass, { 40, 10, 24, 24 });
+
+    CHECK_FALSE (phase.isLit());
+    Kit::click (phase);
+    CHECK (kit.value (Processor::invertId) == 1.0f);
+    CHECK (phase.isLit());
+    CHECK (kit.history.count() == 1);
+
+    CHECK_FALSE (bypass.isOff());
+    kit.processor.parameterState().getParameter (Processor::bypassId)->setValueNotifyingHost (1.0f);
+    CHECK (bypass.getToggleState());
+    CHECK (bypass.isOff());
+    CHECK_FALSE (bypass.isLit());
+}
+
+TEST_CASE ("A Band's Off button lights its translucent tint while hovered, more while pressed")
+{
+    Kit kit;
+    staple::IconButton bypass ("Bypass", staple::Icon::power);
+    bypass.setOffLook (true);
+    bypass.setClickingTogglesState (true);
+    bypass.setToggleState (true, juce::dontSendNotification);
+    kit.add (bypass, { 10, 10, 24, 24 });
+    REQUIRE (bypass.isOff());
+    // The tint alone, on nothing, at the square's top middle, clear of the icon.
+    const auto tint = [&bypass] (bool highlighted, bool down) {
+        const auto image = harness::paintImage (24, 24, [&] (juce::Graphics& g) { bypass.paintButton (g, highlighted, down); });
+        return static_cast<int> (image.getPixelAt (12, 2).getAlpha());
+    };
+    const auto rest = tint (false, false), hovered = tint (true, false), pressed = tint (false, true);
+    CHECK (rest > 0);
+    CHECK (hovered > rest);
+    CHECK (pressed > hovered);
+}
+
+namespace
+{
+// The Shape Edge selector, its items in the parameter's order, each with its icon.
+void addShapes (staple::EdgeSelector& selector)
+{
+    const staple::Icon icons[] = { staple::Icon::bell,     staple::Icon::lowShelf, staple::Icon::lowCut,    staple::Icon::highShelf,
+                                   staple::Icon::highCut,  staple::Icon::notch,    staple::Icon::bandPass,  staple::Icon::tiltShelf,
+                                   staple::Icon::flatTilt, staple::Icon::allPass };
+    const auto& names = Processor::shapeNames();
+    for (int i = 0; i < names.size(); ++i)
+        selector.addItem (names[i], i + 1, icons[i]);
+}
+} // namespace
+
+TEST_CASE ("An EdgeSelector attached with ComboBoxAttachment sets its parameter when an item is picked, and steps with up and down")
+{
+    Kit kit;
+    staple::EdgeSelector shape ("Shape", staple::EdgeSelector::Side::left);
+    addShapes (shape);
+    Attachment::ComboBoxAttachment attachment (kit.state(), Processor::shapeId, shape);
+    kit.add (shape, { 0, 10, 104, 34 });
+    CHECK (shape.getText() == "Bell");
+
+    shape.setSelectedId (5, juce::sendNotificationSync); // as a pick from its list does
+    CHECK (kit.value (Processor::shapeId) == 4.0f);
+    CHECK (kit.history.count() == 1);
+
+    CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+    CHECK (kit.value (Processor::shapeId) == 5.0f);
+    CHECK (shape.getText() == "Notch");
+    CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK (shape.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK (kit.value (Processor::shapeId) == 3.0f);
+    CHECK (kit.history.count() == 4);
+
+    // Its list carries the same icons.
+    CHECK (shape.getRootMenu()->getNumItems() == 10);
+    juce::PopupMenu::MenuItemIterator items (*shape.getRootMenu());
+    REQUIRE (items.next());
+    CHECK (items.getItem().image != nullptr);
+}
+
+TEST_CASE ("Knob and EdgeSelector keep JUCE's accessibility and the arrow-key steps")
+{
+    Kit kit;
+    staple::Knob gain (staple::tokens::knob::gain);
+    Attachment::SliderAttachment gainAttachment (kit.state(), Processor::gainId, gain);
+    gain.setTitle ("Band 2 Gain");
+    gain.setTextValueSuffix (" dB");
+    staple::EdgeSelector placement ("Stereo Placement", staple::EdgeSelector::Side::right);
+    const staple::Icon icons[] = { staple::Icon::placementStereo, staple::Icon::placementLeft, staple::Icon::placementRight,
+                                   staple::Icon::placementMid, staple::Icon::placementSide };
+    for (int i = 0; i < Processor::placementNames().size(); ++i)
+        placement.addItem (Processor::placementNames()[i], i + 1, icons[i]);
+    Attachment::ComboBoxAttachment placementAttachment (kit.state(), Processor::placementId, placement);
+    placement.setTitle ("Band 2 Stereo Placement");
+    kit.add (gain, { 10, 10, gain.getIdealSize(), gain.getIdealSize() });
+    kit.add (placement, { 200, 10, 104, 34 });
+    gain.setValue (3.0, juce::sendNotificationSync);
+
+    auto* knobHandler = gain.getAccessibilityHandler();
+    REQUIRE (knobHandler != nullptr);
+    CHECK (knobHandler->getTitle() == "Band 2 Gain");
+    REQUIRE (knobHandler->getValueInterface() != nullptr);
+    CHECK (knobHandler->getValueInterface()->getCurrentValueAsString() == "3.00 dB");
+    auto* selectorHandler = placement.getAccessibilityHandler();
+    REQUIRE (selectorHandler != nullptr);
+    CHECK (selectorHandler->getTitle() == "Band 2 Stereo Placement");
+    REQUIRE (selectorHandler->getValueInterface() != nullptr);
+    CHECK (selectorHandler->getValueInterface()->getCurrentValueAsString() == "Stereo");
+
+    CHECK (gain.getWantsKeyboardFocus());
+    const double before = position (gain);
+    CHECK (gain.keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK_THAT (position (gain), WithinAbs (before + 0.01, 1.0e-4));
+    CHECK (placement.getWantsKeyboardFocus());
+    CHECK (placement.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));
+    CHECK (selectorHandler->getValueInterface()->getCurrentValueAsString() == "Left");
+}
+
+TEST_CASE ("A Popover closes on an outside click and on Esc, returns focus to its opener, and its contents leave the focus order")
+{
+    Kit kit;
+    juce::TextButton opener ("Analyzer"), elsewhere ("Elsewhere");
+    kit.add (opener, { 20, 20, 80, 24 });
+    kit.add (elsewhere, { 200, 200, 80, 24 });
+    staple::Popover popover;
+    juce::TextButton inside ("Pre + Post");
+    popover.addAndMakeVisible (inside);
+    popover.setCardSize (160, 80);
+    inside.setBounds (popover.getCardBounds().reduced (8).withHeight (24));
+    int closes = 0;
+    popover.onClose = [&] { ++closes; };
+
+    // Tab reaches c: it is showing, and among the focus stops of its focus container.
+    const auto inFocusOrder = [&] (juce::Component& c) {
+        auto* container = c.findKeyboardFocusContainer();
+        const auto all = juce::KeyboardFocusTraverser().getAllComponents (container != nullptr ? container : &kit.window);
+        return c.isShowing() && std::find (all.begin(), all.end(), &c) != all.end();
+    };
+    CHECK_FALSE (inFocusOrder (inside));
+
+    // Opened from the keyboard: focus moves in.
+    kit.lookAndFeel.showFocusRing (true);
+    opener.grabKeyboardFocus();
+    popover.open (opener);
+    REQUIRE (popover.isOpen());
+    CHECK (popover.getParentComponent() == &kit.window); // inside the editor, not a window of its own
+    CHECK (popover.getCardBounds().translated (popover.getX(), popover.getY()).getY() >= opener.getBottom()); // below its opener
+    CHECK (inside.hasKeyboardFocus (false));
+    CHECK (inFocusOrder (inside));
+
+    // A click inside, or on its opener, leaves it open; a click anywhere else closes it.
+    popover.mouseDown (harness::mouseEvent (inside, centreOf (inside), juce::ModifierKeys::leftButtonModifier, centreOf (inside)));
+    CHECK (popover.isOpen());
+    popover.mouseDown (harness::mouseEvent (elsewhere, centreOf (elsewhere), juce::ModifierKeys::leftButtonModifier, centreOf (elsewhere)));
+    CHECK_FALSE (popover.isOpen());
+    CHECK (closes == 1);
+    CHECK (opener.hasKeyboardFocus (false));
+    CHECK_FALSE (inFocusOrder (inside));
+
+    popover.open (opener);
+    REQUIRE (inside.hasKeyboardFocus (false));
+    CHECK (kit.window.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::escapeKey)));
+    CHECK_FALSE (popover.isOpen());
+    CHECK (closes == 2);
+    CHECK (opener.hasKeyboardFocus (false));
+    CHECK_FALSE (inFocusOrder (inside));
+
+    // Opened by a click: focus stays where it was, Esc from there still closes it, and closing leaves
+    // focus there.
+    kit.lookAndFeel.showFocusRing (false);
+    elsewhere.grabKeyboardFocus();
+    popover.open (opener);
+    CHECK (elsewhere.hasKeyboardFocus (false));
+    CHECK (kit.window.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::escapeKey)));
+    CHECK_FALSE (popover.isOpen());
+    CHECK (elsewhere.hasKeyboardFocus (false));
+}
+
+TEST_CASE ("A Popover opens on its preferred side where there is room, else on the other, 10 px above its opener or 6 px below")
+{
+    Kit kit; // 400 x 300
+    juce::TextButton opener ("Opener");
+    staple::Popover popover;
+    popover.setCardSize (160, 120);
+    const auto card = [&] { return popover.getCardBounds().translated (popover.getX(), popover.getY()); };
+
+    SECTION ("Above, as preferred")
+    {
+        kit.add (opener, { 20, 200, 80, 28 });
+        popover.open (opener, staple::Popover::Placement::above);
+        REQUIRE (popover.isOpen());
+        CHECK (opener.getY() - card().getBottom() == 10);
+    }
+    SECTION ("Below, as preferred")
+    {
+        kit.add (opener, { 20, 20, 80, 28 });
+        popover.open (opener, staple::Popover::Placement::below);
+        REQUIRE (popover.isOpen());
+        CHECK (card().getY() - opener.getBottom() == 6);
+    }
+    SECTION ("Above, preferring below where there is no room below")
+    {
+        kit.add (opener, { 20, 260, 80, 24 });
+        popover.open (opener, staple::Popover::Placement::below);
+        REQUIRE (popover.isOpen());
+        CHECK (opener.getY() - card().getBottom() == 10);
+    }
+    SECTION ("Below, preferring above where there is no room above")
+    {
+        kit.add (opener, { 20, 40, 80, 28 });
+        popover.open (opener, staple::Popover::Placement::above);
+        REQUIRE (popover.isOpen());
+        CHECK (card().getY() - opener.getBottom() == 6);
+    }
+}
+
+TEST_CASE ("A Popover pops in about its card's centre, from 3 px lower, wherever it is placed")
+{
+    Kit kit; // 400 x 300
+    juce::TextButton opener ("Opener");
+    kit.add (opener, { 220, 200, 80, 28 });
+    staple::Popover popover;
+    popover.setCardSize (160, 120);
+    popover.open (opener, staple::Popover::Placement::above);
+    REQUIRE (popover.isOpen());
+    // The card where it ends up, in the window's pixels.
+    harness::checkPopInStart (popover, popover.getCardBounds().toFloat() + popover.getPosition().toFloat());
+}
+
+TEST_CASE ("A TextChip clicks as a Button, and is as wide as its text, padding and chevron")
+{
+    Kit kit;
+    staple::TextChip range ("12 dB", staple::TextChip::Look::filled);
+    staple::TextChip plain ("Copy", staple::TextChip::Look::plain);
+    range.setChevron (true);
+    kit.add (range, { 10, 10, range.getIdealWidth(), 22 });
+    int clicks = 0;
+    range.onClick = [&] { ++clicks; };
+    Kit::click (range);
+    CHECK (clicks == 1);
+
+    const float text = juce::GlyphArrangement::getStringWidth (staple::font (staple::tokens::size::fs3, staple::Weight::medium), "Copy");
+    CHECK (plain.getIdealWidth() >= static_cast<int> (text) + 12);
+    CHECK (range.getIdealWidth() > plain.getIdealWidth());
+    range.setChevron (false);
+    const int withoutChevron = range.getIdealWidth();
+    range.setChevron (true);
+    CHECK (range.getIdealWidth() >= withoutChevron + 8);
+}
+
+TEST_CASE ("A Knob's outer ring lane reports presses, drags and hovers to its handler, and doesn't turn the knob")
+{
+    struct Ring final : staple::Knob::RingHandler
+    {
+        int downs = 0, drags = 0, ups = 0, hoversOn = 0, hoversOff = 0, paints = 0;
+        float inner = 0.0f, outer = 0.0f;
+        void paintRing (juce::Graphics&, staple::Knob&, juce::Point<float>, float in, float out) override
+        {
+            ++paints;
+            inner = in;
+            outer = out;
+        }
+        void ringMouseDown (staple::Knob&, const juce::MouseEvent&) override { ++downs; }
+        void ringMouseDrag (staple::Knob&, const juce::MouseEvent&) override { ++drags; }
+        void ringMouseUp (staple::Knob&, const juce::MouseEvent&) override { ++ups; }
+        void ringHover (staple::Knob&, bool over) override { ++(over ? hoversOn : hoversOff); }
+    } ring;
+
+    Kit kit;
+    staple::Knob gain (staple::tokens::knob::gain);
+    Attachment::SliderAttachment attachment (kit.state(), Processor::gainId, gain);
+    gain.setRing (&ring); // the Gain knob's 12 px lane at r + 10
+    kit.add (gain, { 10, 10, gain.getIdealSize(), gain.getIdealSize() });
+    const auto centre = gain.getFaceCentre();
+    const auto onRing = centre.translated (0.0f, -(33.0f + 10.0f));
+    const auto beyond = centre.translated (0.0f, -(33.0f + 17.0f));
+    CHECK (gain.getIdealSize() >= 66 + 2 * 16);
+    CHECK (gain.isOnRing (onRing));
+    CHECK_FALSE (gain.isOnRing (centre));
+    CHECK_FALSE (gain.isOnRing (beyond));
+    CHECK (gain.hitTest (juce::roundToInt (onRing.x), juce::roundToInt (onRing.y)));
+    CHECK_FALSE (gain.hitTest (juce::roundToInt (beyond.x), juce::roundToInt (beyond.y)));
+
+    gain.mouseMove (harness::mouseEvent (gain, onRing, {}, onRing));
+    CHECK (ring.hoversOn == 1);
+    gain.mouseMove (harness::mouseEvent (gain, centre, {}, centre));
+    CHECK (ring.hoversOff == 1);
+
+    Kit::drag (gain, onRing, -50.0f);
+    CHECK (ring.downs == 1);
+    CHECK (ring.drags == 2);
+    CHECK (ring.ups == 1);
+    Kit::doubleClick (gain, onRing);
+    CHECK (ring.downs == 3);
+    CHECK_THAT (position (gain), WithinAbs (0.5, 1.0e-6));
+    CHECK (kit.history.count() == 0);
+
+    harness::paintImage (gain.getWidth(), gain.getHeight(), [&] (juce::Graphics& g) { gain.paintEntireComponent (g, false); });
+    CHECK (ring.paints == 1);
+    CHECK_THAT (ring.inner, WithinAbs (33.0 + 4.0, 1.0e-4));
+    CHECK_THAT (ring.outer, WithinAbs (33.0 + 16.0, 1.0e-4));
+}
+
+namespace
+{
+// An Edge selector in a Kit window that counts the repaints asked of it. The pointer's events go to it
+// as JUCE delivers them: over its child Label, to the Label's mouse listeners, the selector among them.
+// (A window that isn't in front, as a test's isn't, takes no pointer from its peer, nor paints before
+// its next frame.)
+struct HoverKit
+{
+    Kit kit;
+    staple::EdgeSelector shape { "Shape", staple::EdgeSelector::Side::left };
+    // Stands in for the window's own drawing, which is all children's, and counts repaints asked of it.
+    harness::RepaintCounter* repaints = nullptr;
+
+    HoverKit()
+    {
+        addShapes (shape);
+        shape.setSelectedId (1);
+        shape.setEdgeColour (staple::tokens::colour::curveMain);
+        shape.setIconColour (staple::tokens::colour::curveMain);
+        kit.add (shape, { 20, 20, 104, 34 });
+        repaints = &harness::countRepaintsOf (kit.window); // owned by the window
+    }
+
+    ~HoverKit()
+    {
+        kit.window.setCachedComponentImage (nullptr);
+        juce::PopupMenu::dismissAllActiveMenus();
+    }
+
+    juce::Label& label() { return *harness::findChild<juce::Label> (shape); }
+
+    // An event at the Label's centre, from the Label, as its listeners get it.
+    juce::MouseEvent overLabel (juce::ModifierKeys mods = {})
+    {
+        const auto at = label().getLocalBounds().toFloat().getCentre();
+        return harness::mouseEvent (label(), at, mods);
+    }
+
+    // The face's mean brightness, as it paints now.
+    float brightness()
+    {
+        const auto image = shape.createComponentSnapshot (shape.getLocalBounds(), true, 1.0f);
+        const juce::Image::BitmapData pixels (image, juce::Image::BitmapData::readOnly);
+        double sum = 0.0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const auto c = pixels.getPixelColour (x, y);
+                sum += (c.getFloatRed() + c.getFloatGreen() + c.getFloatBlue()) * c.getFloatAlpha();
+            }
+        return static_cast<float> (sum / (image.getWidth() * image.getHeight()));
+    }
+};
+} // namespace
+
+TEST_CASE ("An Edge selector paints brighter while hovered, and brighter again while pressed")
+{
+    HoverKit h;
+    const float rest = h.brightness();
+    const auto at = centreOf (h.shape);
+    h.shape.mouseEnter (harness::mouseEvent (h.shape, at));
+    const float hovered = h.brightness();
+    CHECK (hovered > rest * 1.02f);
+
+    Kit::press (h.shape);
+    const float pressed = h.brightness();
+    CHECK (pressed > hovered * 1.02f);
+    Kit::release (h.shape);
+    CHECK_THAT (h.brightness(), WithinAbs (hovered, 1.0e-6));
+    h.shape.mouseExit (harness::mouseEvent (h.shape, at));
+    CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
+}
+
+TEST_CASE ("An Edge selector lights the moment the pointer enters over its Label, and unlights the moment it leaves")
+{
+    HoverKit h;
+    const float rest = h.brightness();
+
+    const int before = h.repaints->count;
+    h.shape.mouseEnter (h.overLabel());
+    CHECK (h.repaints->count > before);
+    CHECK (h.brightness() > rest * 1.02f);
+
+    const int lit = h.repaints->count;
+    h.shape.mouseExit (h.overLabel());
+    CHECK (h.repaints->count > lit);
+    CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
+}
+
+TEST_CASE ("A disabled Edge selector paints the same hovered, pressed or not")
+{
+    HoverKit h;
+    h.shape.setEnabled (false);
+    const float rest = h.brightness();
+    h.shape.mouseEnter (h.overLabel());
+    CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
+    h.shape.mouseDown (h.overLabel (juce::ModifierKeys::leftButtonModifier));
+    CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
+}
+
+TEST_CASE ("Tab skips a disabled Knob")
+{
+    Kit kit;
+    staple::Knob knob (staple::tokens::knob::q);
+    kit.add (knob, { 10, 10, knob.getIdealSize(), knob.getIdealSize() });
+    const auto focusStops = [&] { return juce::KeyboardFocusTraverser().getAllComponents (&kit.window); };
+    CHECK (focusStops().size() == 1);
+    knob.setEnabled (false);
+    CHECK (focusStops().empty());
+}
+
+// Not run by ctest: draws every kit control in its states as gallery (harness::writeSnapshot), for
+// checking by hand against the prototype (docs/staple-handoff/prototype/Main.dc.html).
+TEST_CASE ("The Staple controls kit's gallery", "[.screens]")
+{
+    Kit kit;
+    auto& w = kit.window;
+    w.setSize (760, 520);
+    w.setOpaque (true);
+    struct Background final : juce::Component
+    {
+        void paint (juce::Graphics& g) override { g.fillAll (staple::tokens::colour::bg0); }
+    } background;
+    kit.add (background, w.getLocalBounds());
+
+    struct Lane final : staple::Knob::RingHandler
+    {
+        void paintRing (juce::Graphics& g, staple::Knob&, juce::Point<float> c, float inner, float outer) override
+        {
+            juce::Path lane;
+            const float r = (inner + outer) / 2.0f;
+            lane.addCentredArc (c.x, c.y, r, r, 0.0f, juce::degreesToRadians (-135.0f), juce::degreesToRadians (135.0f), true);
+            g.setColour (staple::tokens::colour::knobRingLane);
+            g.strokePath (lane, juce::PathStrokeType (outer - inner));
+        }
+    } lane;
+
+    namespace t = staple::tokens;
+    std::vector<std::unique_ptr<juce::Component>> owned;
+    const auto keep = [&] (auto* c) {
+        owned.emplace_back (c);
+        return c;
+    };
+
+    // Knobs: Frequency, Gain (bipolar, with its ring lane), Q, a 30 px dynamics knob, Output Gain from
+    // 0 dB on its skewed range, and a disabled one.
+    auto* frequency = keep (new staple::Knob (t::knob::frequency, "Frequency"));
+    auto* gain = keep (new staple::Knob (t::knob::gain, "Gain"));
+    auto* q = keep (new staple::Knob (t::knob::q, "Q"));
+    auto* small = keep (new staple::Knob (t::knob::small, "Attack"));
+    auto* output = keep (new staple::Knob (64.0f, "Output Gain"));
+    auto* disabled = keep (new staple::Knob (t::knob::q, "Q"));
+    Attachment::SliderAttachment a1 (kit.state(), Processor::frequencyId, *frequency), a2 (kit.state(), Processor::gainId, *gain);
+    for (auto* k : { frequency, gain, q, small, disabled })
+        k->setArcColour (t::colour::curveMain);
+    output->setArcColour (t::colour::curveMain);
+    output->setArcOrigin (0.0);
+    gain->setBipolar (true);
+    gain->setRing (&lane);
+    gain->setTitle ("Band 4 Gain");
+    gain->setTextValueSuffix (" dB");
+    frequency->setTitle ("Band 4 Frequency");
+    frequency->setTextValueSuffix (" Hz");
+    frequency->setValue (2400.0, juce::sendNotificationSync);
+    gain->setValue (-11.42, juce::sendNotificationSync);
+    q->setRange (0.025, 40.0);
+    q->setSkewFactorFromMidPoint (1.0);
+    q->setValue (2.0, juce::sendNotificationSync);
+    small->setRange (0.0, 100.0);
+    small->setValue (30.0);
+    output->setRange (-80.0, 36.0);
+    output->setSkewFactorFromMidPoint (0.0);
+    output->setValue (3.0, juce::sendNotificationSync);
+    disabled->setEnabled (false);
+    int x = 20;
+    for (auto* k : { frequency, gain, q, small, output, disabled })
+    {
+        const int s = k->getIdealSize();
+        kit.add (*k, { x, 150 - s / 2, s, s });
+        x += s + 16;
+    }
+    frequency->mouseEnter (harness::mouseEvent (*frequency, centreOf (*frequency), {}, centreOf (*frequency)));
+    gain->mouseEnter (harness::mouseEvent (*gain, centreOf (*gain), {}, centreOf (*gain)));
+    gain->getKnobTooltip()->startEditing();
+
+    // Icon buttons: normal, hover, pressed, lit, Off, Off hovered, disabled, focused.
+    x = 20;
+    std::vector<staple::IconButton*> icons;
+    for (int i = 0; i < 8; ++i)
+    {
+        auto* b = keep (new staple::IconButton ("icon", i == 4 || i == 5 ? staple::Icon::power : staple::Icon::headphones));
+        b->setLitColour (t::colour::curveMain);
+        kit.add (*b, { x, 230, 24, 24 });
+        icons.push_back (b);
+        x += 40;
+    }
+    icons[1]->setState (juce::Button::buttonOver);
+    icons[2]->setState (juce::Button::buttonDown);
+    icons[3]->setToggleState (true, juce::dontSendNotification);
+    for (int i : { 4, 5 })
+    {
+        icons[static_cast<size_t> (i)]->setOffLook (true);
+        icons[static_cast<size_t> (i)]->setToggleState (true, juce::dontSendNotification);
+    }
+    icons[5]->setState (juce::Button::buttonOver);
+    icons[6]->setEnabled (false);
+
+    // Text chips: filled with a chevron (normal, hover, pressed), plain (normal, hover), disabled.
+    x = 20;
+    std::vector<staple::TextChip*> chips;
+    for (int i = 0; i < 6; ++i)
+    {
+        const bool filled = i < 3 || i == 5;
+        auto* c = keep (new staple::TextChip (filled ? "12 dB" : "A/B", filled ? staple::TextChip::Look::filled : staple::TextChip::Look::plain));
+        c->setChevron (filled);
+        kit.add (*c, { x, 290, c->getIdealWidth(), 22 });
+        chips.push_back (c);
+        x += c->getIdealWidth() + 16;
+    }
+    chips[1]->setState (juce::Button::buttonOver);
+    chips[2]->setState (juce::Button::buttonDown);
+    chips[4]->setState (juce::Button::buttonOver);
+    chips[5]->setEnabled (false);
+
+    // Edge selectors: Shape on a panel's left side, Stereo Placement on its right, and a disabled one.
+    struct Panel final : juce::Component
+    {
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (staple::tokens::colour::raised);
+            g.fillRoundedRectangle (getLocalBounds().toFloat(), staple::tokens::size::r3);
+        }
+    } panel;
+    kit.add (panel, { 20, 340, 480, 60 });
+    staple::EdgeSelector shape ("Shape", staple::EdgeSelector::Side::left);
+    addShapes (shape);
+    shape.setSelectedId (1);
+    shape.setEdgeColour (t::colour::curveMain);
+    shape.setIconColour (t::colour::curveMain);
+    staple::EdgeSelector placement ("Stereo Placement", staple::EdgeSelector::Side::right);
+    placement.addItem ("Stereo", 1, staple::Icon::placementStereo, t::colour::placeStereo);
+    placement.setSelectedId (1);
+    placement.setEdgeColour (t::colour::curveMain);
+    staple::EdgeSelector off ("Shape", staple::EdgeSelector::Side::left);
+    addShapes (off);
+    off.setSelectedId (3);
+    off.setEdgeColour (t::colour::curveMain);
+    off.setIconColour (t::colour::curveMain);
+    off.setEnabled (false);
+    panel.addAndMakeVisible (shape);
+    panel.addAndMakeVisible (placement);
+    shape.setBounds (0, 13, 104, 34);
+    placement.setBounds (480 - 104, 13, 104, 34);
+    kit.add (off, { 560, 353, 104, 34 });
+
+    // A popover, opened under a chip.
+    staple::TextChip opener ("Analyzer", staple::TextChip::Look::filled);
+    opener.setChevron (true);
+    kit.add (opener, { 540, 230, opener.getIdealWidth(), 22 });
+    staple::Popover popover;
+    staple::TextChip item1 ("Pre + Post", staple::TextChip::Look::plain), item2 ("Post", staple::TextChip::Look::plain);
+    popover.setCardSize (150, 74);
+    popover.addAndMakeVisible (item1);
+    popover.addAndMakeVisible (item2);
+    item1.setBounds (popover.getCardBounds().reduced (6).withHeight (30));
+    item2.setBounds (item1.getBounds().translated (0, 32));
+    item1.setState (juce::Button::buttonOver);
+    popover.open (opener);
+    harness::settleAnimations(); // its pop-in, played to the end
+
+    // The focus ring, as LookAndFeel's FocusOutline draws it after Tab (a window of its own, so drawn
+    // here in its place).
+    struct FocusRing final : juce::Component
+    {
+        void paint (juce::Graphics& g) override
+        {
+            namespace size = staple::tokens::size;
+            g.setColour (staple::tokens::colour::focus);
+            g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (size::focusWidth / 2.0f),
+                                    size::r2 + size::focusOffset + size::focusWidth / 2.0f, size::focusWidth);
+        }
+    } focusRing;
+    focusRing.setInterceptsMouseClicks (false, false);
+    kit.add (focusRing, icons[7]->getBounds().expanded (4));
+    juce::Desktop::getInstance().getAnimator().cancelAllAnimations (true);
+
+    CHECK (popover.isOpen());
+    CHECK (popover.isVisible());
+    CHECK (popover.getAlpha() == 1.0f);
+    harness::writeSnapshot (w, "gallery");
+}
+
+TEST_CASE ("A Knob's tooltip and a Popover open inside the editor's scaled content, so they scale with it")
+{
+    Kit kit;
+    juce::Component content; // as the editor's, drawn at the UI Scale through one transform
+    kit.add (content, { 0, 0, 300, 200 });
+    content.setTransform (juce::AffineTransform::scale (1.5f));
+    staple::Knob knob (staple::tokens::knob::frequency);
+    content.addAndMakeVisible (knob);
+    knob.setBounds (100, 100, knob.getIdealSize(), knob.getIdealSize());
+    knob.mouseEnter (harness::mouseEvent (knob, centreOf (knob), {}, centreOf (knob)));
+    REQUIRE (knob.isTooltipShown());
+    CHECK (knob.getKnobTooltip()->getParentComponent() == &content);
+
+    juce::TextButton opener ("Analyzer");
+    content.addAndMakeVisible (opener);
+    opener.setBounds (10, 10, 80, 24);
+    staple::Popover popover;
+    popover.setCardSize (100, 40);
+    popover.open (opener);
+    CHECK (popover.getParentComponent() == &content);
+}

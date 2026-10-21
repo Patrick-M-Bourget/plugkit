@@ -35,6 +35,8 @@ juce_add_binary_data(plugkit-ui-fonts
 add_library(plugkit-ui INTERFACE)
 add_library(plugkit::ui ALIAS plugkit-ui)
 target_sources(plugkit-ui INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/Accessibility.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/ValueText.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Accessibility.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Fonts.cpp
@@ -43,8 +45,16 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Painting.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/TooltipWindow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/WindowBackground.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/EdgeSelector.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/IconButton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Knob.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/KnobTooltip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Overlay.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/ParseValue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Popover.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/TextChip.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/Tween.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/TypeIn.cpp
 )
 target_include_directories(plugkit-ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(plugkit-ui INTERFACE cxx_std_20)
