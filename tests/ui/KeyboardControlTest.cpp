@@ -7,6 +7,7 @@
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
+#include "plugkit/ui/KeyboardSlider.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -73,6 +74,29 @@ TEST_CASE ("Arrow keys step every slider 1% of its range, 0.2% with Shift, withi
     const auto sliders = host.sliders();
     CHECK (sliders.size() == 2);
     checkArrowSteps (host, sliders);
+}
+
+TEST_CASE ("An arrow key steps a slider from the value its drag start sets")
+{
+    // A control whose drag start moves its value, as comp1's Comp turning Comp Follow on moves Comp to 80%.
+    struct MovesOnDragStart final : juce::Slider::Listener
+    {
+        void sliderValueChanged (juce::Slider*) override {}
+        void sliderDragStarted (juce::Slider* s) override { s->setValue (80.0, juce::sendNotificationSync); }
+    };
+    const juce::ScopedJuceInitialiser_GUI juce;
+    plugkit::ui::KeyboardSlider slider;
+    slider.setRange (0.0, 100.0);
+    slider.setValue (50.0, juce::dontSendNotification);
+    MovesOnDragStart listener;
+    slider.addListener (&listener);
+
+    CHECK (slider.keyPressed (up));
+    CHECK_THAT (slider.getValue(), WithinAbs (81.0, 1.0e-9));
+    // The key's repeat is the same drag, so it steps on from there.
+    CHECK (slider.keyPressed (up));
+    CHECK_THAT (slider.getValue(), WithinAbs (82.0, 1.0e-9));
+    slider.removeListener (&listener);
 }
 
 TEST_CASE ("Each arrow press on a slider is one undo step, and so is a held key with its repeats")

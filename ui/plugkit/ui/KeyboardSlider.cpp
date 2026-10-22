@@ -53,6 +53,9 @@ bool KeyboardSlider::keyPressed (const juce::KeyPress& key)
         return false;
     staple::LookAndFeel::keyUsed (*this);
 
+    // The held drag starts first, so the step starts from whatever its drag start leaves.
+    if (! held)
+        held.emplace (*this);
     const double from = getValue();
     double to;
     if (arrowSteps)
@@ -64,8 +67,6 @@ bool KeyboardSlider::keyPressed (const juce::KeyPress& key)
         to = juce::jlimit (getMinimum(), getMaximum(), from + direction * interval);
     if (landStep != nullptr)
         to = landStep (from, to);
-    if (! held)
-        held.emplace (*this);
     setValue (to, juce::sendNotificationSync);
     return true;
 }
