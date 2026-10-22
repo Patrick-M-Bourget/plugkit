@@ -46,6 +46,8 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardControl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/OutputMeter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/OutputPopoverFrame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/OutputReadout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetBar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetBrowser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/PresetLibrary.cpp
