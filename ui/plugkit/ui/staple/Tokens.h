@@ -153,7 +153,7 @@ namespace shadow
     inline const juce::DropShadow knobSmall { colour::shadow.withAlpha (0.35f), 8, { 0, 3 } }; // 30 px and below
     inline const juce::DropShadow handle { colour::shadow.withAlpha (0.45f), 5, { 0, 0 } };
     inline const juce::DropShadow thumb { colour::shadow.withAlpha (0.5f), 5, { 0, 2 } }; // the fader's thumb, the bar's pills
-    inline const juce::DropShadow panThumb { colour::shadow.withAlpha (0.5f), 3, { 0, 1 } }; // Output Pan's small thumb
+    inline const juce::DropShadow panThumb { colour::shadow.withAlpha (0.5f), 3, { 0, 1 } }; // a PopoverSlider's small thumb (eq1's Output Pan's)
     inline const juce::DropShadow selectedHandle { colour::shadow.withAlpha (0.45f), 8, { 0, 0 } };
 } // namespace shadow
 
