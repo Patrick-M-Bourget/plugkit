@@ -1,8 +1,6 @@
-// Copied from eq1's tests/plugin/UiScaleTest.cpp (eq1 at dbb1127), its cases on the UI Scale menu, the session's
-// window size and UI Scale and the per-user settings, against plugkit's test processor and its editor
-// (TestProcessor.h). The window's size is read from the Session, as the plugin's editor applies it; eq1's cases on the
-// editor's own size and limits at each UI Scale are its PluginEditor's, and stay in eq1. A version 1 state written
-// here stands in for eq1's state-v2.xml fixture.
+// Copied from eq1's tests/plugin/UiScaleTest.cpp (eq1 at dbb1127), against plugkit's test processor and its editor
+// (TestProcessor.h), an EditorShell, whose window is eq1's. A version 1 state written here stands in for eq1's
+// state-v2.xml fixture.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
@@ -69,15 +67,41 @@ void restoreOlderSession (TestProcessor& processor)
 
 } // namespace
 
-TEST_CASE ("A new instance opens at the window's default size and 100%, with a UI Scale menu of 75, 100, 125, 150 and 200%")
+TEST_CASE ("A new instance opens at 1200 x 760 and 100%, with a UI Scale menu of 75, 100, 125, 150 and 200%")
 {
     juce::ScopedJuceInitialiser_GUI juce;
     TestProcessor processor;
     const auto editor = openEditor (processor);
-    CHECK (processor.sessionState().editorSize() == TestProcessor::window.defaultSize);
+    CHECK (editor->getWidth() == 1200);
+    CHECK (editor->getHeight() == 760);
     auto& menu = uiScaleMenu (*editor);
     CHECK (menu.shownPercent() == 100);
     CHECK (uiScaleItems (menu) == std::vector<juce::String> { "75%", "100%", "125%", "150%", "200%" });
+}
+
+TEST_CASE ("At each UI Scale the editor is its logical size times the scale, and so are its limits and what it draws")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    TestProcessor processor;
+    const auto editor = openEditor (processor);
+    auto& menu = uiScaleMenu (*editor);
+    const auto atHundred = editor->getLocalArea (&menu, menu.getLocalBounds());
+
+    const int percent = GENERATE (75, 100, 125, 150, 200);
+    CAPTURE (percent);
+    pickUiScale (*editor, percent);
+    const auto scaled = [percent] (int logical) { return juce::roundToInt (logical * percent / 100.0); };
+    CHECK (editor->getWidth() == scaled (1200));
+    CHECK (editor->getHeight() == scaled (760));
+    const auto* constrainer = editor->getConstrainer();
+    REQUIRE (constrainer != nullptr);
+    CHECK (constrainer->getMinimumWidth() == scaled (960));
+    CHECK (constrainer->getMinimumHeight() == scaled (600));
+    CHECK (constrainer->getMaximumWidth() == scaled (TestProcessor::window.maximum.x));
+    CHECK (constrainer->getMaximumHeight() == scaled (TestProcessor::window.maximum.y));
+    // A control sits where it did at 100%, scaled, and is that much larger.
+    const auto drawn = editor->getLocalArea (&menu, menu.getLocalBounds());
+    CHECK (drawn == atHundred.transformedBy (juce::AffineTransform::scale (percent / 100.0f)));
 }
 
 TEST_CASE ("A screen reader reads the UI Scale menu as a button whose value is the UI Scale")
@@ -118,11 +142,12 @@ TEST_CASE ("The window's size and UI Scale survive closing and reopening the edi
     {
         const auto editor = openEditor (processor);
         pickUiScale (*editor, 150);
-        processor.sessionState().setEditorSize ({ 1200, 800 });
+        editor->setSize (1800, 1200); // 1200 x 800 logical
     }
     const auto editor = openEditor (processor);
     CHECK (uiScaleMenu (*editor).shownPercent() == 150);
-    CHECK (processor.sessionState().editorSize() == juce::Point<int> { 1200, 800 });
+    CHECK (editor->getWidth() == 1800);
+    CHECK (editor->getHeight() == 1200);
 }
 
 TEST_CASE ("The window's size and UI Scale are saved with the session, not in a Preset, and change neither the undo history nor Modified")
@@ -137,7 +162,7 @@ TEST_CASE ("The window's size and UI Scale are saved with the session, not in a 
     {
         const auto editor = openEditor (saved);
         pickUiScale (*editor, 75);
-        session.setEditorSize ({ 1200, 800 });
+        editor->setSize (900, 600); // 1200 x 800 logical
     }
     CHECK_FALSE (session.isLoadedPresetModified());
     CHECK (saved.editHistory().undoSteps() == steps);
@@ -148,7 +173,8 @@ TEST_CASE ("The window's size and UI Scale are saved with the session, not in a 
     reload (restored, saved);
     const auto editor = openEditor (restored);
     CHECK (uiScaleMenu (*editor).shownPercent() == 75);
-    CHECK (restored.sessionState().editorSize() == juce::Point<int> { 1200, 800 });
+    CHECK (editor->getWidth() == 900);
+    CHECK (editor->getHeight() == 600);
 }
 
 TEST_CASE ("A session restored while the editor is open shows its UI Scale on the next tick")
@@ -169,13 +195,14 @@ TEST_CASE ("A session saved before the window's size and UI Scale opens like a n
     {
         const auto editor = openEditor (processor);
         pickUiScale (*editor, 200);
-        processor.sessionState().setEditorSize ({ 1000, 700 });
+        editor->setSize (2600, 1400);
     }
     restoreOlderSession (processor);
 
     const auto editor = openEditor (processor);
     CHECK (uiScaleMenu (*editor).shownPercent() == 100);
-    CHECK (processor.sessionState().editorSize() == TestProcessor::window.defaultSize);
+    CHECK (editor->getWidth() == 1200);
+    CHECK (editor->getHeight() == 760);
     CHECK (TestProcessor::stateVersion == 2);
 }
 

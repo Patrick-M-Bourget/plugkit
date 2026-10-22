@@ -6,12 +6,10 @@
 // Placement ones (eq1's plugin/Parameters.cpp), so the tests copied from eq1 check the same values; its Global Bypass
 // is eq1's, and its Ratio is comp1's, whose range ends at +inf.
 
-#include "plugkit/ui/EditorTick.h"
-#include "plugkit/ui/HeaderBar.h"
-#include "plugkit/ui/KeyboardControl.h"
+#include "plugkit/ui/EditorShell.h"
 #include "plugkit/ui/Session.h"
+#include "plugkit/ui/SetTogether.h"
 #include "plugkit/ui/UiScaleMenu.h"
-#include "plugkit/ui/staple/LookAndFeel.h"
 #include "plugkit/ui/staple/controls/Knob.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -225,87 +223,62 @@ private:
     std::atomic<int> zoomLevel { 1 };
 };
 
-// The test processor's editor, as a plugin's has its parts: Staple's LookAndFeel and the editor's tick (EditorTick);
-// along its top the header (HeaderBar), its wordmark the processor's name; a Knob for Frequency
-// and one for Gain, each described by and attached to its parameter; a row of a toggle (Phase Invert), a button
-// (Reset Gain, one undo step) and a ComboBox (Shape); the UI Scale menu at the bottom right; and the Preset browser
-// over it all. The editor-wide keys (KeyboardControl) take in every control. It opens at the session's window size,
-// and doesn't scale itself: scaling the window is each plugin's editor's.
-class TestEditor final : public juce::AudioProcessorEditor, public plugkit::ui::EditorTick::Host
+// The test processor's editor, as a plugin's is built on the shell (EditorShell): the header, its wordmark the
+// processor's name; a body of a Knob for Frequency and one for Gain, each described by and attached to its parameter,
+// and a row of a toggle (Phase Invert), a button (Reset Gain, one undo step) and a ComboBox (Shape); and a footer with
+// the UI Scale menu at its right. The body and footer are titled, so the layout cases find them.
+class TestEditor final : public plugkit::ui::EditorShell
 {
 public:
-    explicit TestEditor (TestProcessor& p)
-        : AudioProcessorEditor (p),
-          tick (p),
-          session (p.sessionState()),
-          header (session, p.getName()),
-          uiScale (session),
-          keyboard (session.editHistory())
+    explicit TestEditor (TestProcessor& p) : EditorShell (p, p.sessionState(), { p.getName() }), uiScale (p.sessionState())
     {
-        setLookAndFeel (&lookAndFeel);
         shape.addItemList (TestProcessor::shapeNames(), 1);
         shape.setTitle ("Shape");
         invert.setTitle ("Phase Invert");
         resetGain.setTitle ("Reset Gain");
         resetGain.onClick = [this] { plugkit::ui::setTogether ({ { &gainParameter, gainParameter.getDefaultValue() } }); };
-        for (juce::Component* child : std::initializer_list<juce::Component*> { &header, &frequency, &gain, &invert, &resetGain, &shape,
-                                                                                 &uiScale })
-            addAndMakeVisible (*child);
-        addChildComponent (header.presetBrowser());
-        // Tab's order: the header (and the Preset browser while open), the Knobs, the row and the footer.
+        body.setTitle ("Body");
+        footer.setTitle ("Footer");
         int order = 0;
-        for (juce::Component* child : std::initializer_list<juce::Component*> { &header, &header.presetBrowser(), &frequency, &gain, &invert,
-                                                                                 &resetGain, &shape, &uiScale })
+        for (juce::Component* child : std::initializer_list<juce::Component*> { &frequency, &gain, &invert, &resetGain, &shape })
+        {
+            body.addAndMakeVisible (*child);
             child->setExplicitFocusOrder (++order);
+        }
+        footer.addAndMakeVisible (uiScale);
+        uiScale.onPicked = [this] (int) { applyUiScale(); };
         frequency.describe (frequencyParameter);
         gain.describe (gainParameter);
-        keyboard.adopt (*this);
-        const auto size = session.editorSize();
-        setSize (size.x, size.y);
-    }
-
-    ~TestEditor() override { setLookAndFeel (nullptr); }
-
-    plugkit::ui::EditorTick& editorTick() override { return tick; }
-
-    // With nothing in the editor focused, Tab focuses its first control and Shift+Tab its last, showing the focus
-    // ring. As eq1's PluginEditor::keyPressed (eq1 at dbb1127), without its Global Bypass, undo and redo keys.
-    bool keyPressed (const juce::KeyPress& key) override
-    {
-        if (key.isKeyCode (juce::KeyPress::tabKey) && ! isParentOf (getCurrentlyFocusedComponent()))
-        {
-            const auto all = createKeyboardFocusTraverser()->getAllComponents (this);
-            if (all.empty())
-                return false;
-            lookAndFeel.showFocusRing (true);
-            (key.getModifiers().isShiftDown() ? all.back() : all.front())->grabKeyboardFocus();
-            return true;
-        }
-        return false;
-    }
-
-    void resized() override
-    {
-        header.setBounds (getLocalBounds().removeFromTop (headerHeight).reduced (14, 0));
-        frequency.setBounds (20, 70, frequency.getIdealSize(), frequency.getIdealSize());
-        gain.setBounds (160, 70, gain.getIdealSize(), gain.getIdealSize());
-        invert.setBounds (20, 220, 120, 28);
-        resetGain.setBounds (150, 220, 100, 28);
-        shape.setBounds (260, 220, 140, 28);
-        uiScale.setBounds (getLocalBounds().removeFromBottom (44).removeFromRight (44).reduced (6));
-        header.presetBrowser().setBounds (getLocalBounds());
+        content().addAndMakeVisible (body);
+        body.setExplicitFocusOrder (firstFocusOrder);
+        open (footer);
     }
 
 private:
-    static constexpr int headerHeight = 52;
+    // A footer whose UI Scale menu sits at its right.
+    struct Footer final : juce::Component
+    {
+        void resized() override
+        {
+            if (auto* menu = getChildComponent (0))
+                menu->setBounds (getLocalBounds().removeFromRight (44).reduced (6));
+        }
+    };
 
-    staple::LookAndFeel lookAndFeel;
-    plugkit::ui::EditorTick tick;
-    plugkit::ui::Session& session;
+    void layOutBody (juce::Rectangle<int> area) override
+    {
+        body.setBounds (area);
+        frequency.setBounds (6, 0, frequency.getIdealSize(), frequency.getIdealSize());
+        gain.setBounds (146, 0, gain.getIdealSize(), gain.getIdealSize());
+        invert.setBounds (6, 150, 120, 28);
+        resetGain.setBounds (136, 150, 100, 28);
+        shape.setBounds (246, 150, 140, 28);
+    }
+
     juce::AudioProcessorValueTreeState& state = dynamic_cast<TestProcessor&> (processor).parameterState();
     juce::RangedAudioParameter& frequencyParameter = *state.getParameter (TestProcessor::frequencyId);
     juce::RangedAudioParameter& gainParameter = *state.getParameter (TestProcessor::gainId);
-    plugkit::ui::HeaderBar header;
+    juce::Component body;
     staple::Knob frequency { staple::tokens::knob::frequency, "Frequency" }, gain { staple::tokens::knob::gain, "Gain" };
     juce::SliderParameterAttachment frequencyAttachment { frequencyParameter, frequency }, gainAttachment { gainParameter, gain };
     juce::ToggleButton invert { "Phase Invert" };
@@ -313,8 +286,8 @@ private:
     juce::ComboBox shape { "Shape" };
     juce::AudioProcessorValueTreeState::ButtonAttachment invertAttachment { state, TestProcessor::invertId, invert };
     juce::AudioProcessorValueTreeState::ComboBoxAttachment shapeAttachment { state, TestProcessor::shapeId, shape };
+    Footer footer;
     plugkit::ui::UiScaleMenu uiScale;
-    plugkit::ui::KeyboardControl keyboard;
 };
 
 inline juce::AudioProcessorEditor* TestProcessor::createEditor() { return new TestEditor (*this); }

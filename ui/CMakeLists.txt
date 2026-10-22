@@ -40,6 +40,7 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/AnalyzerSpectrum.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/CompareGroup.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditHistory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorShell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/HeaderBar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardControl.cpp

@@ -194,7 +194,7 @@ TEST_CASE ("Every control Tab reaches has a focus ring, which Tab shows")
 
 TEST_CASE ("With nothing focused, Tab focuses the first control and Shift+Tab the last")
 {
-    // The editor's own keyPressed, as eq1's PluginEditor's (TestEditor's copy of it), not KeyboardControl's.
+    // The editor's own keyPressed (EditorShell's), not KeyboardControl's.
     EveryControl host;
     juce::Component::unfocusAllComponents();
     host.press (tab);
