@@ -65,7 +65,77 @@ int largestAlphaDifference (const juce::Image& a, const juce::Image& b, const st
                 largest = std::max (largest, std::abs (a.getPixelAt (x, y).getAlpha() - b.getPixelAt (x, y).getAlpha()));
     return largest;
 }
+
+// An icon drawn in Staple's stroke, fitted into a 64 px square offset half a pixel, so that a grid point at a
+// multiple of 0.25 lands on a pixel's centre.
+juce::Image drawnIcon (staple::Icon icon)
+{
+    return harness::paintImage (65, 65, [icon] (juce::Graphics& g) {
+        staple::drawIcon (g, icon, { 0.5f, 0.5f, 64.0f, 64.0f }, juce::Colours::white);
+    });
+}
+
+// The alpha at a point of a 16 px grid icon drawn as above (4 px per grid unit).
+int alphaAt (const juce::Image& drawn, float gridX, float gridY)
+{
+    return drawn.getPixelAt (juce::roundToInt (gridX * 4.0f), juce::roundToInt (gridY * 4.0f)).getAlpha();
+}
 } // namespace
+
+// The view and window-size switch's arrows, as the design system's Footer preview draws them: on the 16 px grid,
+// one arrow along each diagonal, expand's heads at the corners and collapse's at the centre.
+TEST_CASE ("The expand and collapse arrows point out to the corners and in to the centre, unlike any other icon")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    for (const auto icon : { staple::Icon::expand, staple::Icon::collapse })
+    {
+        CAPTURE (staple::nameOf (icon));
+        CHECK (staple::gridOf (icon) == juce::Rectangle<float> (16.0f, 16.0f));
+        const auto bounds = staple::pathOf (icon).getBounds();
+        CHECK (bounds.getWidth() > 8.0f);
+        CHECK (bounds.getHeight() > 8.0f);
+        CHECK (juce::Rectangle<float> (1.0f, 1.0f, 14.0f, 14.0f).contains (bounds));
+    }
+    CHECK (juce::String (staple::nameOf (staple::Icon::expand)) == "expand");
+    CHECK (juce::String (staple::nameOf (staple::Icon::collapse)) == "collapse");
+
+    const auto expand = drawnIcon (staple::Icon::expand);
+    const auto collapse = drawnIcon (staple::Icon::collapse);
+
+    // Both run the diagonal from a corner towards the centre.
+    for (const auto* drawn : { &expand, &collapse })
+    {
+        CHECK (alphaAt (*drawn, 13.0f, 3.0f) > 128);
+        CHECK (alphaAt (*drawn, 3.0f, 13.0f) > 128);
+    }
+
+    // Expand's heads lie along the outer edges, by the corners.
+    CHECK (alphaAt (expand, 12.0f, 2.0f) > 128);
+    CHECK (alphaAt (expand, 14.0f, 4.0f) > 128);
+    CHECK (alphaAt (expand, 4.0f, 14.0f) > 128);
+    CHECK (alphaAt (expand, 2.0f, 12.0f) > 128);
+    CHECK (alphaAt (collapse, 12.0f, 2.0f) < 32);
+    CHECK (alphaAt (collapse, 2.0f, 12.0f) < 32);
+
+    // Collapse's heads are at the centre end.
+    CHECK (alphaAt (collapse, 9.5f, 4.5f) > 128);
+    CHECK (alphaAt (collapse, 11.5f, 6.5f) > 128);
+    CHECK (alphaAt (collapse, 6.5f, 11.5f) > 128);
+    CHECK (alphaAt (collapse, 4.5f, 9.5f) > 128);
+    CHECK (alphaAt (expand, 9.5f, 4.5f) < 32);
+    CHECK (alphaAt (expand, 4.5f, 9.5f) < 32);
+
+    // Drawn at the same size, each differs from every other icon by more than a faint edge somewhere.
+    for (const auto icon : { staple::Icon::expand, staple::Icon::collapse })
+        for (int i = 0; i < staple::numIcons; ++i)
+        {
+            const auto other = static_cast<staple::Icon> (i);
+            if (other == icon)
+                continue;
+            CAPTURE (staple::nameOf (icon), staple::nameOf (other));
+            CHECK (largestAlphaDifference (drawnIcon (icon), drawnIcon (other), [] (juce::Point<float>) { return true; }) > 128);
+        }
+}
 
 // A shadow that blurs renders an image on every paint; the kit's controls repaint at frame rate, so
 // their shadows are drawSoftShadow's stacked shapes instead (HANDOFF.md §4). Outside the control, what

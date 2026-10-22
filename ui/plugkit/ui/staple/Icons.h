@@ -1,6 +1,7 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/Icons.h (eq1 at dbb1127); listed in eq1#231.
+// Copied from eq1's plugin/staple/Icons.h (eq1 at dbb1127), with plugkit's expand and collapse added; listed in
+// eq1#231.
 
 #include <juce_graphics/juce_graphics.h>
 
@@ -21,10 +22,12 @@ enum class Icon
     // Stereo Placements: drawn over placementStereo at low opacity for the part not processed
     placementStereo, placementLeft, placementRight, placementMid, placementSide,
     // Detection Range
-    detectionRangeBand, detectionRangeFree
+    detectionRangeBand, detectionRangeFree,
+    // A view or window-size switch: plugkit's own, from the design system's Footer preview
+    expand, collapse
 };
 
-inline constexpr int numIcons = static_cast<int> (Icon::detectionRangeFree) + 1;
+inline constexpr int numIcons = static_cast<int> (Icon::collapse) + 1;
 
 // Its name in the prototype's terms, for tests and debugging.
 const char* nameOf (Icon icon);
