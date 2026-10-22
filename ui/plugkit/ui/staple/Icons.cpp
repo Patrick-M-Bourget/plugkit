@@ -1,4 +1,5 @@
-// Copied from eq1's plugin/staple/Icons.cpp (eq1 at dbb1127); listed in eq1#231.
+// Copied from eq1's plugin/staple/Icons.cpp (eq1 at dbb1127), with plugkit's expand and collapse added; listed in
+// eq1#231.
 
 #include "Icons.h"
 
@@ -61,7 +62,10 @@ const Definition definitions[numIcons] = {
     { "placementMid", 20, 12, "M10 2.65 A4.5 4.5 0 0 1 10 9.35 A4.5 4.5 0 0 1 10 2.65" },
     { "placementSide", 20, 12, "M10 2.65 A4.5 4.5 0 1 0 10 9.35 A4.5 4.5 0 0 1 10 2.65 M10 2.65 A4.5 4.5 0 1 1 10 9.35 A4.5 4.5 0 0 0 10 2.65" },
     { "detectionRangeBand", 16, 12, "M1 10 C5 10 6 3 8 3 S11 10 15 10" },
-    { "detectionRangeFree", 16, 12, "M2 6 H14 M4.5 3.5 L2 6 L4.5 8.5 M11.5 3.5 L14 6 L11.5 8.5" }
+    { "detectionRangeFree", 16, 12, "M2 6 H14 M4.5 3.5 L2 6 L4.5 8.5 M11.5 3.5 L14 6 L11.5 8.5" },
+    // collapse is the Footer preview's (design-system/components/Footer), and expand its arrows turned outwards.
+    { "expand", 16, 16, "M9.5 6.5 L14 2 M10.5 2 H14 V5.5 M6.5 9.5 L2 14 M2 10.5 V14 H5.5" },
+    { "collapse", 16, 16, "M14 2 L9.5 6.5 M9.5 3 V6.5 H13 M2 14 L6.5 9.5 M6.5 13 V9.5 H3" }
 };
 
 const Definition& definitionOf (Icon icon)
