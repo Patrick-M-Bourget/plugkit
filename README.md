@@ -9,6 +9,7 @@ The shared library for the [eq1](https://github.com/Patrick-M-Bourget/eq1) and [
   - **The Analyzer:** AnalyzerSpectrum (FFT, smoothing, Peak Hold, Tilt), and in `plugkit::ui::display` the display geometry, the Frequency grid and its labels, any grid's lines (`paintGrid (g, lines, size)`), the edge fades and the Analyzer layer. Each display passes its own Frequency range, narrow width and fade distances.
   - **The Output Meter:** OutputMeter, ClipLights and the meter ballistics. The meter reads an `OutputLevelSource`, which the plugin's processor implements: `readOutputLevel` returns its Engine's OutputLevel through a `ClipLights` member's `note`, which lights a channel's Clip Light on a peak above 0 dBFS, and `isClipLit` and `clearClipLights` ask that member. The processor clears the Clip Lights when it restores a session.
   - **The session state:** `Session`, the Plugin Shell's undo history (EditHistory), A/B Compare, Preset Library and window size and UI Scale, with the rules for saving and restoring them, and the widgets that drive it (PresetBar and its PresetBrowser, CompareGroup's Undo, Redo, A/B Compare and Copy, and UiScaleMenu). See "Session state".
+  - **The editor shell:** `EditorShell`, the base of a plugin's editor, and `HeaderBar`, the header it holds: the plugin's wordmark, PresetBar and CompareGroup. See "The editor shell".
 
   See "Linking plugkit-ui".
 - **`plugkit::editor_harness`:** eq1's editor test harness (`plugkit/test/EditorHarness.h`, namespace `harness`), for a plugin's editor tests. See "Linking plugkit-ui".
@@ -22,7 +23,7 @@ The CI scripts and the check harness live here too.
 - **Grown in slices**, each just before comp1 needs it:
   1. CI and the check harness ([comp1#2](https://github.com/Patrick-M-Bourget/comp1/issues/2)).
   2. `plugkit-dsp` ([comp1#5](https://github.com/Patrick-M-Bourget/comp1/issues/5)).
-  3. `plugkit-ui`: its foundation ([comp1#22](https://github.com/Patrick-M-Bourget/comp1/issues/22)), the meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)) and session state ([comp1#37](https://github.com/Patrick-M-Bourget/comp1/issues/37)).
+  3. `plugkit-ui`: its foundation ([comp1#22](https://github.com/Patrick-M-Bourget/comp1/issues/22)), the meters and display layers ([comp1#36](https://github.com/Patrick-M-Bourget/comp1/issues/36)), session state ([comp1#37](https://github.com/Patrick-M-Bourget/comp1/issues/37)) and the editor shell and header ([comp1#75](https://github.com/Patrick-M-Bourget/comp1/issues/75)).
 
 ## Linking plugkit-ui
 
@@ -73,6 +74,39 @@ void setStateInformation (const void* data, int size) override
 ```
 
 `restore` runs from any thread: it migrates, reads the window's size and UI Scale, calls the view reader, restores A/B Compare, restores every parameter (a missing one at its default, a non-finite value at its default unless it is an infinity the range ends at, an out-of-range one at the nearer end, and unknown content kept and saved again as it was), and empties the undo history. The editor gives its widgets the session, and its editor-wide keys its `editHistory()`.
+
+## The editor shell
+
+A plugin's editor derives from `plugkit::ui::EditorShell`, which lays out the Staple window:
+
+- **The header** (`HeaderBar`), 52 px: the wordmark on the left, PresetBar centred in the window, and CompareGroup on the right. The Preset browser opens over everything.
+- **The plugin's body** between the header and the footer, which takes whatever the window grows by, and **its footer**, 44 px, along the bottom. The window has 14 px padding and 12 px gaps (`staple::tokens::layout`).
+- **The window:** resizable within the Session's `window` limits, sized and drawn at the UI Scale through one transform on the content (the overlay layer for popovers), with `staple::paintWindowBackground` under everything. It follows a restored session's size and UI Scale on its tick (EditorTick), which it owns.
+- **The keys:** Cmd-Z undoes, Shift-Cmd-Z and Cmd-Y redo, Cmd-B toggles Global Bypass as one undo step (Ctrl on Windows), and with nothing focused Tab focuses the first control and Shift+Tab the last. KeyboardControl takes in every control.
+
+The plugin passes the processor, its Session and an `EditorShell::Config`: `wordmark`, its name, and `globalBypassId`, the parameter Cmd-B toggles (`global_bypass` by default). It adds its components to `content()`, numbering their Tab order from `firstFocusOrder`, lays them out in `layOutBody`, and calls `open (footer)` last:
+
+```cpp
+class PluginEditor final : public plugkit::ui::EditorShell
+{
+public:
+    explicit PluginEditor (PluginProcessor& p) : EditorShell (p, p.session(), { "comp1" }), footer (p)
+    {
+        content().addAndMakeVisible (display);
+        display.setExplicitFocusOrder (firstFocusOrder);
+        footer.uiScaleMenu().onPicked = [this] (int) { applyUiScale(); };
+        open (footer); // along the bottom, last in Tab's order
+    }
+
+private:
+    void layOutBody (juce::Rectangle<int> area) override { display.setBounds (area); }
+
+    Display display;
+    Footer footer;
+};
+```
+
+The footer, the display and the meters are the plugin's own.
 
 ## The check harness
 
