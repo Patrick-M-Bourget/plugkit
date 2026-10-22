@@ -1,15 +1,17 @@
-// Copied from eq1's tests/plugin/HeaderTest.cpp (eq1 at dbb1127), its cases on the Preset group (PresetBar), the
-// Modified dot, Copy, A/B Compare and Undo and Redo (CompareGroup), against plugkit's test editor (TestProcessor.h).
-// Copy's and Copied's case checks that they end at the same x, not at eq1's header's (1170 px). The wordmark's and
-// the Preset group's centring cases are eq1's header layout, and stay in eq1.
+// Copied from eq1's tests/plugin/HeaderTest.cpp (eq1 at dbb1127), against plugkit's test editor (TestProcessor.h),
+// whose header (HeaderBar) shows the test processor's name as its wordmark, in eq1's window. The wordmark's case
+// checks the name the editor passes, not eq1's staple::wordmark, and the centring case also checks that the wordmark
+// clears the Preset group.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/CompareGroup.h"
+#include "plugkit/ui/HeaderBar.h"
 #include "plugkit/ui/PresetBar.h"
 #include "plugkit/ui/staple/Tokens.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using plugkit::test::TestProcessor;
@@ -79,6 +81,38 @@ struct Header : harness::OpenEditor<TestProcessor>
 
 } // namespace
 
+TEST_CASE ("The header shows the wordmark at its left")
+{
+    Header host;
+    auto* header = harness::findChild<plugkit::ui::HeaderBar> (*host.editor);
+    REQUIRE (header != nullptr);
+    CHECK (header->wordmark() == "plugkit test");
+    CHECK (header->wordmarkArea().getX() == 6);
+    CHECK (host.editor->getLocalArea (header, header->wordmarkArea()).getRight() < host.inEditor (host.titled ("Undo")).getX());
+}
+
+TEST_CASE ("The Preset group stays centred in the window at any width")
+{
+    Header host;
+    const int width = GENERATE (960, 1200, 1600);
+    const bool longName = GENERATE (false, true);
+    CAPTURE (width, longName);
+    if (longName)
+        host.loadPreset ("A Very Long Preset Name For Warm Vocal Presence With Plenty Of Air On Top");
+    host.editor->setSize (width, 760);
+    for (auto* button : { &host.titled ("Presets"), &host.titled ("Previous Preset"), &host.titled ("Next Preset") })
+        REQUIRE (button->isShowing());
+
+    const auto group = host.inEditor (host.titled ("Previous Preset")).getUnion (host.inEditor (host.titled ("Next Preset")));
+    CHECK (std::abs (group.getCentreX() * 2 - width) <= 2);
+    CHECK (host.inEditor (host.titled ("Presets")).getWidth() >= 250);
+    CHECK (host.inEditor (host.titled ("Presets")).getHeight() == 36);
+    // The side groups don't overlap it.
+    auto& header = *harness::findChild<plugkit::ui::HeaderBar> (*host.editor);
+    CHECK (host.editor->getLocalArea (&header, header.wordmarkArea()).getRight() < group.getX());
+    CHECK (host.inEditor (host.titled ("Undo")).getX() > group.getRight());
+}
+
 TEST_CASE ("With no Loaded Preset the name reads No Preset in text3; a Modified side shows the dot")
 {
     Header host;
@@ -117,17 +151,17 @@ TEST_CASE ("The Modified dot sits 14 px after the Preset name")
     CHECK_THAT (dot.getStart() - name.getEnd(), Catch::Matchers::WithinAbs (14.0, 1.0));
 }
 
-TEST_CASE ("Copy and Copied both end at the same x, and nothing in the group moves between them")
+TEST_CASE ("Copy and Copied both end at the prototype's x, and nothing in the header moves between them")
 {
     Header host;
     host.settle (300);
     const auto copyBounds = host.copy().getBounds(), compareBounds = host.compare().getBounds();
-    const float copyRight = host.inkRight (host.copy());
+    CHECK_THAT (host.inkRight (host.copy()), Catch::Matchers::WithinAbs (1170.0, 1.0));
 
     host.copy().onClick();
     host.settle (100);
     REQUIRE (host.copy().getButtonText() == "Copied");
-    CHECK_THAT (host.inkRight (host.copy()), Catch::Matchers::WithinAbs (copyRight, 1.0));
+    CHECK_THAT (host.inkRight (host.copy()), Catch::Matchers::WithinAbs (1170.0, 1.0));
     CHECK (host.copy().getBounds() == copyBounds);
     CHECK (host.compare().getBounds() == compareBounds);
 }
@@ -194,13 +228,13 @@ TEST_CASE ("Undo and Redo are disabled when there is nothing to undo or redo")
 }
 
 // Renders the test editor's header for checking by hand against the prototype (harness::writeSnapshot):
-// header-no-preset and header-modified-copied, each the window's top at 2x.
+// header-no-preset and header-modified-copied, each the window's top 80 px (the header and the padding round it) at 2x.
 TEST_CASE ("Header snapshots: no Loaded Preset, and Modified on B just after Copy", "[.screens]")
 {
     Header host;
     host.settle (300);
     const auto write = [&] (const char* name) {
-        harness::writeSnapshot (*host.editor, juce::String ("header-") + name, host.editor->getLocalBounds().removeFromTop (52));
+        harness::writeSnapshot (*host.editor, juce::String ("header-") + name, host.editor->getLocalBounds().removeFromTop (80));
     };
     write ("no-preset");
     host.loadPreset ("Warm Vocal Presence");

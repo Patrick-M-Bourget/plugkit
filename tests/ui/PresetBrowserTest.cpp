@@ -1,6 +1,5 @@
 // Copied from eq1's tests/plugin/PresetBrowserTest.cpp (eq1 at dbb1127), against plugkit's test processor and its
-// editor (TestProcessor.h), whose Preset Library holds two Factory Presets. The editor's is a 640 x 400 window, so the
-// cases on the panel's size and its 960 x 600 minimum set the editor's size themselves.
+// editor (TestProcessor.h), whose Preset Library holds two Factory Presets and whose window is eq1's.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"

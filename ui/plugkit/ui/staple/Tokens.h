@@ -1,9 +1,10 @@
 #pragma once
 
 // Copied from eq1's plugin/staple/Tokens.h (eq1 at dbb1127), without eq1's own tokens: the Band palette, the window's
-// and its areas' layout (the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, hoverCard and curve
-// namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit has the
-// two tokens plugkit-ui's Preset and A/B widgets read.
+// size and its display's, Band panel's and Detection Range bar's layout (the window's padding and gap, the header's,
+// footer's and meter rail's sizes and the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, hoverCard
+// and curve namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit
+// has the two tokens plugkit-ui's Preset and A/B widgets read.
 
 // Staple's design tokens: the values in docs/staple-handoff/tokens.json and HANDOFF.md's visual spec,
 // kept by hand. The only place in plugkit-ui a colour is written as a number. design-system/ beside this file
@@ -108,9 +109,12 @@ namespace size
     constexpr float focusWidth = 2.0f, focusOffset = 2.0f;
 } // namespace size
 
-// Menus, at 100 % UI scale (HANDOFF.md §4 "Menus / popovers / cards").
+// The window's areas and menus, at 100 % UI scale (HANDOFF.md §2, §4, §9; §4 "Menus / popovers / cards"): the
+// window's padding and the gap between its rows, the header's and footer's height and the Output Meter rail's width.
 namespace layout
 {
+    constexpr int outerPadding = 14, gap = 12;
+    constexpr int headerHeight = 52, footerHeight = 44, meterWidth = 40;
     constexpr int menuItemHeight = 30, menuPadding = 6, menuSeparatorMargin = 5;
 } // namespace layout
 
