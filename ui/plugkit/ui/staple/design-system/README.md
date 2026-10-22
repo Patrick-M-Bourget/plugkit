@@ -61,7 +61,7 @@ Staple was designed for eq1 (`eq1/docs/staple-handoff`: `tokens.json`, `tokens.c
 
 ## Iconography
 
-16 px grid, 1.5 px strokes, round caps and joins, `currentColor`, no fills. The set is shared across the family: power (bypass), headphones (solo or audition), chevrons (‹ › stepping, ⌄ menus), close ×, undo and redo arrows, and the expand/collapse arrows for view and window size. An icon-only button always carries an `aria-label`.
+16 px grid, 1.5 px strokes, round caps and joins, `currentColor`, no fills. The set is shared across the family: power (bypass), headphones (solo or audition), chevrons (‹ › stepping, ⌄ menus), close ×, undo and redo arrows, and the expand/collapse arrows for view and window size (expand points out to the corners, collapse in to the centre). plugkit-ui's `staple::Icon` (`Icons.h`) draws each one, among them `Icon::expand` and `Icon::collapse`. An icon-only button always carries an `aria-label`.
 
 ## The window, in both plugins
 
