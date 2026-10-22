@@ -44,6 +44,7 @@ add_executable(plugkit_plugin_tests
     ui/HeaderTest.cpp
     ui/KeyboardControlTest.cpp
     ui/OutputMeterTest.cpp
+    ui/OutputReadoutTest.cpp
     ui/PresetBrowserTest.cpp
     ui/PresetLibraryTest.cpp
     ui/PresetTest.cpp
