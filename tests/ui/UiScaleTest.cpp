@@ -118,11 +118,11 @@ TEST_CASE ("The window's size and UI Scale survive closing and reopening the edi
     {
         const auto editor = openEditor (processor);
         pickUiScale (*editor, 150);
-        processor.sessionState().setEditorSize ({ 800, 500 });
+        processor.sessionState().setEditorSize ({ 1200, 800 });
     }
     const auto editor = openEditor (processor);
     CHECK (uiScaleMenu (*editor).shownPercent() == 150);
-    CHECK (processor.sessionState().editorSize() == juce::Point<int> { 800, 500 });
+    CHECK (processor.sessionState().editorSize() == juce::Point<int> { 1200, 800 });
 }
 
 TEST_CASE ("The window's size and UI Scale are saved with the session, not in a Preset, and change neither the undo history nor Modified")
@@ -137,7 +137,7 @@ TEST_CASE ("The window's size and UI Scale are saved with the session, not in a 
     {
         const auto editor = openEditor (saved);
         pickUiScale (*editor, 75);
-        session.setEditorSize ({ 800, 500 });
+        session.setEditorSize ({ 1200, 800 });
     }
     CHECK_FALSE (session.isLoadedPresetModified());
     CHECK (saved.editHistory().undoSteps() == steps);
@@ -148,7 +148,7 @@ TEST_CASE ("The window's size and UI Scale are saved with the session, not in a 
     reload (restored, saved);
     const auto editor = openEditor (restored);
     CHECK (uiScaleMenu (*editor).shownPercent() == 75);
-    CHECK (restored.sessionState().editorSize() == juce::Point<int> { 800, 500 });
+    CHECK (restored.sessionState().editorSize() == juce::Point<int> { 1200, 800 });
 }
 
 TEST_CASE ("A session restored while the editor is open shows its UI Scale on the next tick")

@@ -2,7 +2,7 @@
 
 // New in plugkit, lifted from eq1's plugin/HeaderBar.h (eq1 at dbb1127): CompareButton as it is there, and
 // CompareGroup, HeaderBar's Undo, Redo, A/B Compare and Copy with their layout, taking the Session, where HeaderBar
-// takes eq1's PluginProcessor. The wordmark, the Preset group (PresetBar) and the header's layout stay eq1's.
+// takes eq1's PluginProcessor. HeaderBar (HeaderBar.h) places it beside the wordmark and the Preset group.
 
 #include "ABCompare.h"
 #include "EditorTick.h"

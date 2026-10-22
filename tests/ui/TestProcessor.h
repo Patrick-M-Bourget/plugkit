@@ -6,10 +6,9 @@
 // Placement ones (eq1's plugin/Parameters.cpp), so the tests copied from eq1 check the same values; its Global Bypass
 // is eq1's, and its Ratio is comp1's, whose range ends at +inf.
 
-#include "plugkit/ui/CompareGroup.h"
 #include "plugkit/ui/EditorTick.h"
+#include "plugkit/ui/HeaderBar.h"
 #include "plugkit/ui/KeyboardControl.h"
-#include "plugkit/ui/PresetBar.h"
 #include "plugkit/ui/Session.h"
 #include "plugkit/ui/UiScaleMenu.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
@@ -45,8 +44,9 @@ public:
     // added A/B Compare.
     static constexpr const char* stateType = "plugkit_test";
     static constexpr int stateVersion = 2;
-    // The window's logical size, and its limits.
-    static constexpr plugkit::ui::Session::Window window { { 640, 400 }, { 480, 300 }, { 1280, 800 } };
+    // The window's logical size, and its limits: eq1's, so the header's and the editor's layout cases copied from eq1
+    // run at the sizes they were written for.
+    static constexpr plugkit::ui::Session::Window window { { 1200, 760 }, { 960, 600 }, { 2560, 1600 } };
 
     static const juce::StringArray& shapeNames()
     {
@@ -226,7 +226,7 @@ private:
 };
 
 // The test processor's editor, as a plugin's has its parts: Staple's LookAndFeel and the editor's tick (EditorTick);
-// along its top the Preset group (PresetBar) and Undo, Redo, A/B Compare and Copy (CompareGroup); a Knob for Frequency
+// along its top the header (HeaderBar), its wordmark the processor's name; a Knob for Frequency
 // and one for Gain, each described by and attached to its parameter; a row of a toggle (Phase Invert), a button
 // (Reset Gain, one undo step) and a ComboBox (Shape); the UI Scale menu at the bottom right; and the Preset browser
 // over it all. The editor-wide keys (KeyboardControl) take in every control. It opens at the session's window size,
@@ -238,27 +238,24 @@ public:
         : AudioProcessorEditor (p),
           tick (p),
           session (p.sessionState()),
-          presetBar (session),
-          compareGroup (session),
+          header (session, p.getName()),
           uiScale (session),
           keyboard (session.editHistory())
     {
         setLookAndFeel (&lookAndFeel);
-        presetBar.onEdit = [this] { compareGroup.showUndoState(); };
-        presetBar.onIdealWidthChange = [this] { resized(); };
         shape.addItemList (TestProcessor::shapeNames(), 1);
         shape.setTitle ("Shape");
         invert.setTitle ("Phase Invert");
         resetGain.setTitle ("Reset Gain");
         resetGain.onClick = [this] { plugkit::ui::setTogether ({ { &gainParameter, gainParameter.getDefaultValue() } }); };
-        for (juce::Component* child : std::initializer_list<juce::Component*> { &presetBar, &compareGroup, &frequency, &gain, &invert,
-                                                                                 &resetGain, &shape, &uiScale })
+        for (juce::Component* child : std::initializer_list<juce::Component*> { &header, &frequency, &gain, &invert, &resetGain, &shape,
+                                                                                 &uiScale })
             addAndMakeVisible (*child);
-        addChildComponent (presetBar.browserPanel());
+        addChildComponent (header.presetBrowser());
         // Tab's order: the header (and the Preset browser while open), the Knobs, the row and the footer.
         int order = 0;
-        for (juce::Component* child : std::initializer_list<juce::Component*> { &presetBar, &presetBar.browserPanel(), &compareGroup, &frequency,
-                                                                                 &gain, &invert, &resetGain, &shape, &uiScale })
+        for (juce::Component* child : std::initializer_list<juce::Component*> { &header, &header.presetBrowser(), &frequency, &gain, &invert,
+                                                                                 &resetGain, &shape, &uiScale })
             child->setExplicitFocusOrder (++order);
         frequency.describe (frequencyParameter);
         gain.describe (gainParameter);
@@ -289,16 +286,14 @@ public:
 
     void resized() override
     {
-        auto header = getLocalBounds().removeFromTop (headerHeight).reduced (14, 0);
-        presetBar.setBounds (header.removeFromLeft (presetBar.getIdealWidth()));
-        compareGroup.setBounds (header.removeFromRight (compareGroup.getIdealWidth()));
+        header.setBounds (getLocalBounds().removeFromTop (headerHeight).reduced (14, 0));
         frequency.setBounds (20, 70, frequency.getIdealSize(), frequency.getIdealSize());
         gain.setBounds (160, 70, gain.getIdealSize(), gain.getIdealSize());
         invert.setBounds (20, 220, 120, 28);
         resetGain.setBounds (150, 220, 100, 28);
         shape.setBounds (260, 220, 140, 28);
         uiScale.setBounds (getLocalBounds().removeFromBottom (44).removeFromRight (44).reduced (6));
-        presetBar.browserPanel().setBounds (getLocalBounds());
+        header.presetBrowser().setBounds (getLocalBounds());
     }
 
 private:
@@ -310,8 +305,7 @@ private:
     juce::AudioProcessorValueTreeState& state = dynamic_cast<TestProcessor&> (processor).parameterState();
     juce::RangedAudioParameter& frequencyParameter = *state.getParameter (TestProcessor::frequencyId);
     juce::RangedAudioParameter& gainParameter = *state.getParameter (TestProcessor::gainId);
-    plugkit::ui::PresetBar presetBar;
-    plugkit::ui::CompareGroup compareGroup;
+    plugkit::ui::HeaderBar header;
     staple::Knob frequency { staple::tokens::knob::frequency, "Frequency" }, gain { staple::tokens::knob::gain, "Gain" };
     juce::SliderParameterAttachment frequencyAttachment { frequencyParameter, frequency }, gainAttachment { gainParameter, gain };
     juce::ToggleButton invert { "Phase Invert" };

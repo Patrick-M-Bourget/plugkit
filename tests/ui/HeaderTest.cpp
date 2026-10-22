@@ -1,15 +1,18 @@
-// Copied from eq1's tests/plugin/HeaderTest.cpp (eq1 at dbb1127), its cases on the Preset group (PresetBar), the
-// Modified dot, Copy, A/B Compare and Undo and Redo (CompareGroup), against plugkit's test editor (TestProcessor.h).
-// Copy's and Copied's case checks that they end at the same x, not at eq1's header's (1170 px). The wordmark's and
-// the Preset group's centring cases are eq1's header layout, and stay in eq1.
+// Copied from eq1's tests/plugin/HeaderTest.cpp (eq1 at dbb1127), against plugkit's test editor (TestProcessor.h),
+// whose header (HeaderBar) shows the test processor's name as its wordmark. Copy's and Copied's case checks that they
+// end at the same x, not at eq1's header's (1170 px). The wordmark's case checks the name the editor passes, not eq1's
+// staple::wordmark; the centring case also checks the wordmark and the right group clear the Preset group, and runs at
+// the test window's minimum, default and maximum widths (eq1's own).
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/CompareGroup.h"
+#include "plugkit/ui/HeaderBar.h"
 #include "plugkit/ui/PresetBar.h"
 #include "plugkit/ui/staple/Tokens.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using plugkit::test::TestProcessor;
@@ -78,6 +81,38 @@ struct Header : harness::OpenEditor<TestProcessor>
 };
 
 } // namespace
+
+TEST_CASE ("The header shows the wordmark at its left")
+{
+    Header host;
+    auto* header = harness::findChild<plugkit::ui::HeaderBar> (*host.editor);
+    REQUIRE (header != nullptr);
+    CHECK (header->wordmark() == "plugkit test");
+    CHECK (header->wordmarkArea().getX() == 6);
+    CHECK (host.editor->getLocalArea (header, header->wordmarkArea()).getRight() < host.inEditor (host.titled ("Undo")).getX());
+}
+
+TEST_CASE ("The Preset group stays centred in the window at any width")
+{
+    Header host;
+    const int width = GENERATE (960, 1200, 1600);
+    const bool longName = GENERATE (false, true);
+    CAPTURE (width, longName);
+    if (longName)
+        host.loadPreset ("A Very Long Preset Name For Warm Vocal Presence With Plenty Of Air On Top");
+    host.editor->setSize (width, 760);
+    for (auto* button : { &host.titled ("Presets"), &host.titled ("Previous Preset"), &host.titled ("Next Preset") })
+        REQUIRE (button->isShowing());
+
+    const auto group = host.inEditor (host.titled ("Previous Preset")).getUnion (host.inEditor (host.titled ("Next Preset")));
+    CHECK (std::abs (group.getCentreX() * 2 - width) <= 2);
+    CHECK (host.inEditor (host.titled ("Presets")).getWidth() >= 250);
+    CHECK (host.inEditor (host.titled ("Presets")).getHeight() == 36);
+    // The side groups don't overlap it.
+    auto& header = *harness::findChild<plugkit::ui::HeaderBar> (*host.editor);
+    CHECK (host.editor->getLocalArea (&header, header.wordmarkArea()).getRight() < group.getX());
+    CHECK (host.inEditor (host.titled ("Undo")).getX() > group.getRight());
+}
 
 TEST_CASE ("With no Loaded Preset the name reads No Preset in text3; a Modified side shows the dot")
 {
