@@ -5,7 +5,8 @@
 # It also refuses a head whose code still cites a ticket the PR closes (its closingIssuesReferences, or a
 # Closes/Fixes/Resolves #N in its body, as scripts/closing-tickets.sh reads them), listing each
 # "file:line: points at #N, which this PR closes": merged, that citation would point at a closed ticket, which
-# scripts/check.sh docs refuses on main. The rule for a citation is scripts/cited-tickets.sh's. --user-approved doesn't override it: it's a content error, not a verdict.
+# scripts/check.sh docs refuses on main. The rule for a citation is scripts/cited-tickets.sh's. --user-approved
+# doesn't override it: it's a content error, not a verdict.
 #
 #   scripts/merge-on-green.sh <PR number>
 #   scripts/merge-on-green.sh <PR number> --user-approved "<the user's words>"
