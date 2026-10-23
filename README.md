@@ -165,12 +165,18 @@ FetchContent_Declare(plugkit GIT_REPOSITORY https://github.com/Patrick-M-Bourget
 FetchContent_MakeAvailable(plugkit)
 ```
 
+**The pin check:** a linked worktree shares the main checkout's `.deps`. CMake configured that folder for the main checkout, so it doesn't fetch plugkit again when the worktree's `PLUGKIT_TAG` moves on, and the build fails later on whatever plugkit changed since. So in such a worktree, every stage checks that `.deps/plugkit-src` is at the commit `PLUGKIT_TAG` names, before its first CMake run.
+
+- **On a mismatch:** the stage stops before CMake runs. It names the folder, the version it is at and the pinned one, and the two fixes: refresh that checkout (it prints the `git fetch` and `git checkout`, for a tag or a commit hash), or set `FETCHCONTENT_BASE_DIR` to the worktree's own `.deps`.
+- **Not checked:** the main checkout, an explicit `FETCHCONTENT_BASE_DIR` and CI, where a changed pin reconfigures and CMake fetches it; without `PLUGKIT_TAG` (plugkit's own repository); and when `plugkit-src` is missing (a first build) or isn't a git checkout.
+
 ### Per-plugin config
 
 `plugkit.conf` is a bash file of `KEY=value` lines. The harness sources it, so quote values that hold spaces. `PLUGKIT_CONFIG=<path>` names a different file, relative to the plugin's root. A stage that needs a key the file leaves empty stops and names that key. "Needed by" names exactly those stages, and in parentheses the optional uses; `hooks` checks it against `check.sh` (`scripts/needed-by.py`). The values in the table are eq1's.
 
 | Key | What it is | Example (eq1) | Needed by |
 |---|---|---|---|
+| `PLUGKIT_TAG` | The plugkit tag (or full commit hash) the plugin pins, which its CMake fetches and its CI clones. Optional: plugkit itself leaves it out | `v0.11.0` | (optional: in a linked worktree, every stage that runs CMake checks the shared `.deps/plugkit-src` is at it) |
 | `PLUGIN_NAME` | CMake target prefix: `<name>_engine_tests`, `<name>_plugin_tests`, `<name>_cpu_budget`, `<name>_render`, `<name>_sidechain_routing_check`, the plugin target `<name>` (artefacts in `<PLUGIN_DIR>/<name>_artefacts`), the Engine target `<name>_engine`; also the C++ namespace `size` attributes code to | `eq1` | every stage |
 | `PRODUCT_NAME` | Bundle and binary name: `<product>.vst3`, `.component`, `.clap`, `.aaxplugin`, `.app`, `.exe` | `eq1` | `validate`, `size` |
 | `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build`, `screens`, `cpu`, `null`, `size`, `tsan`, `asan`, the pre-push hook |

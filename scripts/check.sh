@@ -13,9 +13,9 @@
 #                               outside the editor harness, and no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh colours    only that last check: no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh hooks      the Claude Code worktree hook's, merge-on-green.sh's, the git pre-push hook's, the
-#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the docs ticket checks',
-#                               the plugin config's and the README's needed keys' tests, against fakes and scratch repos
-#                               (not run by git hooks, which run docs)
+#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the docs ticket
+#                               checks', the plugin config's, the README's needed keys' and the plugkit pin check's
+#                               tests, against fakes and scratch repos (not run by git hooks, which run docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
 #   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
@@ -53,6 +53,11 @@
 # CMAKE_C_COMPILER_LAUNCHER and CMAKE_CXX_COMPILER_LAUNCHER environment variables (sccache in CI) apply. Validators
 # are downloaded into the dependencies folder with gh, which needs to be authenticated (GH_TOKEN in CI).
 #
+# In a linked worktree sharing the main checkout's .deps, the first CMake run of any stage checks the plugkit it
+# builds against: when the config sets PLUGKIT_TAG and .deps/plugkit-src is a git checkout, that checkout must be at
+# the commit PLUGKIT_TAG names. Otherwise the stage stops, naming both versions, the folder and the two fixes
+# (refresh the checkout, or set FETCHCONTENT_BASE_DIR to the worktree's own .deps). CI isn't checked.
+#
 # Copied from eq1's scripts/check.sh (eq1 at dbb1127), its names made the plugin's settings; listed in eq1#231.
 set -euo pipefail
 # Where it was called from, for a path given relative to it (screens <dir>).
@@ -70,6 +75,7 @@ common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2> /dev/null 
 main_checkout=${common_dir%/.git}
 if [ -z "${FETCHCONTENT_BASE_DIR:-}" ] && [ -n "$common_dir" ] && [ "$main_checkout" != "$PWD" ] && [ -d "$main_checkout/.deps" ]; then
     DEPS=$main_checkout/.deps
+    shared_deps=1
 else
     DEPS=${FETCHCONTENT_BASE_DIR:-$PWD/.deps}
 fi
@@ -297,6 +303,8 @@ hooks() {
     "$PLUGKIT_DIR/scripts/plugin-config.test.sh"
     step "Needed keys"
     "$PLUGKIT_DIR/scripts/needed-by.test.sh"
+    step "plugkit pin"
+    "$PLUGKIT_DIR/scripts/plugkit-pin.test.sh"
 }
 
 # Every colour in the editor comes from the UI kit's tokens (TOKENS_DIR's Tokens.h): a colour written as a
@@ -341,6 +349,43 @@ match_generator() {
             exit 1
         fi
     fi
+}
+
+# The plugkit a build compiles against is the dependencies folder's checkout, DEPS/plugkit-src. A linked worktree
+# shares the main checkout's, which CMake configured for the main checkout and doesn't fetch again when the
+# worktree's PLUGKIT_TAG moves on: the build then fails on whatever plugkit changed since. So there, before CMake
+# first runs, the checkout must be at the commit PLUGKIT_TAG names. Elsewhere (the main checkout, an explicit
+# FETCHCONTENT_BASE_DIR, CI) a changed pin reconfigures and CMake fetches it. Nothing is checked without a
+# PLUGKIT_TAG (plugkit's own repository) or without a git checkout there (before CMake has fetched one). Its
+# messages go to the script's own stderr (fd 3): a stage may send CMake's output to a log.
+exec 3>&2
+pinned_plugkit() {
+    local tag=${PLUGKIT_TAG:-} src=$DEPS/plugkit-src at pinned version fetch
+    [ -n "${shared_deps:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && [ -n "$tag" ] && [ -e "$src/.git" ] || return 0
+    at=$(git -C "$src" rev-parse --verify --quiet HEAD) || return 0
+    pinned=$(git -C "$src" rev-parse --verify --quiet "$tag^{commit}" || true)
+    [ "$at" = "$pinned" ] && return
+    version=$(git -C "$src" describe --tags --always HEAD)
+    if [ -n "$pinned" ]; then
+        echo "$src isn't at $tag, which $plugkit_config pins: it is at $version ($at)." >&3
+    else
+        echo "$src has no $tag, which $plugkit_config pins: it is at $version ($at)." >&3
+    fi
+    # A pin is a release tag, fetched as a tag so that it names the commit here, or a full commit hash.
+    if [[ $tag =~ ^[0-9a-f]{40}$ ]]; then fetch="origin '$tag'"; else fetch="origin tag '$tag'"; fi
+    echo "This worktree shares the main checkout's dependencies, which CMake doesn't fetch again here. Either:" >&3
+    echo "  refresh it: git -C '$src' fetch --quiet --depth 1 $fetch && git -C '$src' checkout --quiet '$tag'" >&3
+    echo "  or build with the worktree's own dependencies: FETCHCONTENT_BASE_DIR=$PWD/.deps $0 $stage" >&3
+    exit 1
+}
+
+# Every stage runs CMake through here, so each checks the plugkit it builds against before CMake first runs.
+cmake() {
+    if [ -z "${plugkit_pin_checked:-}" ]; then
+        pinned_plugkit
+        plugkit_pin_checked=1
+    fi
+    command cmake "$@"
 }
 
 # Configures a source tree into a build folder the way CI builds: Release, without link-time
@@ -852,6 +897,9 @@ validate() {
     if [ "$os" = macos ]; then test -d "$ARTEFACTS/Standalone/$PRODUCT_NAME.app"; else test -f "$ARTEFACTS/Standalone/$PRODUCT_NAME.exe"; fi
     echo "AAX and Standalone present"
 }
+
+# The stage as called, which the pin check's message repeats.
+stage=${*:-all}
 
 case "${1:-all}" in
     build) build ;;
