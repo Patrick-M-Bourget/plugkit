@@ -236,10 +236,10 @@ plugkit's `CODING_STANDARDS.md` holds the coding standards plugkit and its plugi
 
 ### Ticket citations
 
-Code points only at open tickets (`CODING_STANDARDS.md`, "Comments and docs state current behaviour"). `scripts/check.sh docs` asks GitHub through gh, in the repository the plugin's remote names, so it is skipped where gh isn't signed in.
+Code points only at open tickets (`CODING_STANDARDS.md`, "Comments and docs state current behaviour"). `scripts/check.sh docs` asks GitHub through gh, in the repository the plugin's remote names, so both checks are skipped where gh isn't signed in. A repository with no closed issue skips only the first.
 
 - **Closed tickets:** code under `SOURCE_DIRS` citing a closed issue fails, `file:line: points at closed ticket #N`.
-- **Tickets the branch will close:** these count as closed too, so a citation the merge would turn stale fails on the branch, `file:line: points at #N, which this branch closes; say what the code does now`. When the branch has an open PR, they are its `closingIssuesReferences` and each `Closes`/`Fixes`/`Resolves #N` in its body, read by `scripts/closing-tickets.sh`, as `merge-on-green.sh` reads them. With no PR yet, it is the number the branch name starts with (`<N>-...`), when that names an open issue in this repository. A number that doesn't, such as a plugkit branch named for a comp1 ticket, is skipped. On `main`, a detached HEAD, or a branch with neither, only closed tickets count.
+- **Tickets the branch will close:** these count as closed too, so a citation the merge would turn stale fails on the branch, `file:line: points at #N, which this branch closes; say what the code does now`. When the branch has an open PR, they are its `closingIssuesReferences` to this repository's issues and each `Closes`/`Fixes`/`Resolves #N` in its body, read by `scripts/closing-tickets.sh`, as `merge-on-green.sh` reads them. A PR in plugkit that closes comp1#N doesn't make plugkit's #N count. With no PR yet, it is the number the branch name starts with (`<N>-...`), when that names an open issue in this repository. A number that doesn't, such as a plugkit branch named for a comp1 ticket, is skipped. On `main`, a detached HEAD (CI's PR checkout), or a branch with neither, only closed tickets count. Where gh can't list the branch's PRs, this check is skipped, saying so.
 - **A citation:** a whole `#N` in a tracked file under `SOURCE_DIRS`, Markdown aside, as `scripts/cited-tickets.sh` reads it.
 
 ### A plugin's CI

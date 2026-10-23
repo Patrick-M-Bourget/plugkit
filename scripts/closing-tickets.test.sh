@@ -4,8 +4,9 @@
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook). Needs jq.
 #
 # The fake reads the repository's tickets from files in $FAKE: closed and open (one issue number per line), pr (the
-# number of the current branch's open PR, empty for none), and that PR's closes (JSON array of numbers, its
-# closingIssuesReferences) and body. With $FAKE/signed-out, every call fails, as gh does signed out.
+# number of the current branch's open PR, empty for none), and that PR's closes (its closingIssuesReferences, a JSON
+# array: a number is an issue here, in Me/Demo, and {"number": N, "repo": "<owner>/<name>"} one elsewhere) and body.
+# With $FAKE/signed-out, every call fails, as gh does signed out; with $FAKE/pr-list-fails, gh pr list does.
 set -uo pipefail
 plugkit=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
@@ -32,11 +33,17 @@ case "$1 $2" in
         fi
         jq -n --arg s "$s" '{state: $s}' | jq -r "$query"
         ;;
-    "pr list") jq -R 'tonumber' "$FAKE/pr" | jq -s 'map({number: .})' | jq -r "$query" ;;
+    "repo view") jq -n '{owner: {login: "Me"}, name: "Demo"}' | jq -r "$query" ;;
+    "pr list")
+        [ ! -e "$FAKE/pr-list-fails" ] || { echo "HTTP 502: Bad Gateway" >&2; exit 1; }
+        jq -R 'tonumber' "$FAKE/pr" | jq -s 'map({number: .})' | jq -r "$query"
+        ;;
     "pr view")
         [ "$3" = "$(cat "$FAKE/pr")" ] || { echo "no pull requests found for $3" >&2; exit 1; }
         jq -n --argjson c "$(cat "$FAKE/closes")" --arg b "$(cat "$FAKE/body")" \
-            '{closingIssuesReferences: $c | map({number: .}), body: $b}' | jq -r "$query"
+            '{closingIssuesReferences: $c | map(if type == "number" then {number: ., repo: "Me/Demo"} else . end
+                | {number, repository: {owner: {login: (.repo / "/")[0]}, name: (.repo / "/")[1]}}), body: $b}' |
+            jq -r "$query"
         ;;
     *) echo "fake gh: unexpected call: $*" >&2; exit 99 ;;
 esac
@@ -71,7 +78,7 @@ on() {
     printf '%s\n' "$2" > engine/a.cpp
     git add engine/a.cpp
 }
-# expect <exit code> <output pattern> <description>
+# expect <exit code> <output pattern> <description>; the output is left in $out
 expect() {
     local code=$1 pattern=$2 what=$3 got
     out=$(PATH="$tmp/bin:$PATH" "$plugkit/scripts/check.sh" docs 2>&1)
@@ -130,13 +137,47 @@ on main '// Held until #3 landed.'
 expect 1 "^engine/a.cpp:1: points at closed ticket #3; say what the code does now, or point at an open ticket$" \
     "main still refuses a closed ticket"
 
+on topic '// Holds until #12 lands.'
+echo 7 > "$FAKE/pr"
+echo '[{"number": 12, "repo": "Me/comp1"}]' > "$FAKE/closes"
+expect 0 "^Code points at no closed ticket$" "a PR closing another repository's ticket of that number doesn't count it"
+
+on topic '// Holds until #12 lands.'
+echo 7 > "$FAKE/pr"
+echo '[{"number": 12, "repo": "Other/Demo"}, {"number": 13, "repo": "me/demo"}]' > "$FAKE/closes"
+expect 0 "^Code points at no closed ticket, nor at one this branch closes \(#13\)$" \
+    "only this repository's references count, its owner and name in any case"
+
 on 12-a-thing '// Holds until #12 lands.'
 git checkout -q --detach
-expect 0 "^Code points at no closed ticket$" "a detached HEAD counts no ticket as one it closes"
+touch "$FAKE/pr-list-fails"
+expect 0 "^Code points at no closed ticket$" "a detached HEAD (CI's PR checkout) counts no ticket as one it closes"
+if grep -q "Skipped the closing-ticket check" <<< "$out"; then
+    echo "FAIL: a detached HEAD looked up the branch's PRs: $out" >&2
+    failures=$((failures + 1))
+fi
+
+on 12-a-thing '// Holds until #12 lands.'
+touch "$FAKE/pr-list-fails"
+expect 0 "^Skipped the closing-ticket check: could not read which tickets this branch closes$" \
+    "a branch whose PRs gh can't list skips the closing-ticket check"
+expect 0 "^Code points at no closed ticket$" "a branch whose PRs gh can't list still has the closed tickets checked"
+printf '// Held until #3 landed.\n' > engine/a.cpp
+expect 1 "points at closed ticket #3" "a branch whose PRs gh can't list still refuses a closed ticket"
+
+on 12-a-thing '// Holds until #12 lands.'
+: > "$FAKE/closed"
+expect 1 "$closes_msg" "a repository with no closed issue still refuses a ticket the branch closes"
+expect 1 "^No issue here is closed, so none to check$" "a repository with no closed issue says so"
+
+on main '// Holds until #12 lands.'
+: > "$FAKE/closed"
+expect 0 "^Code points at no closed ticket$" "a repository with no closed issue passes on main"
 
 on 12-a-thing '// Holds until #12 lands.'
 touch "$FAKE/signed-out"
-expect 0 "^Skipped the closed-ticket check: gh isn't signed in$" "signed out, the ticket checks are skipped"
+expect 0 "^Skipped the closed- and closing-ticket checks: gh isn't signed in$" \
+    "signed out, the ticket checks are skipped"
 
 if [ "$failures" = 0 ]; then
     echo "check.sh docs refuses code citing a closed ticket or one the branch closes, and only those"
