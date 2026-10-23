@@ -174,7 +174,7 @@ FetchContent_MakeAvailable(plugkit)
 | `PLUGIN_NAME` | CMake target prefix: `<name>_engine_tests`, `<name>_plugin_tests`, `<name>_cpu_budget`, `<name>_render`, `<name>_sidechain_routing_check`, the plugin target `<name>` (artefacts in `<PLUGIN_DIR>/<name>_artefacts`), the Engine target `<name>_engine`; also the C++ namespace `size` attributes code to | `eq1` | every stage |
 | `PRODUCT_NAME` | Bundle and binary name: `<product>.vst3`, `.component`, `.clap`, `.aaxplugin`, `.app`, `.exe` | `eq1` | `validate`, `size` |
 | `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build`, `screens`, `cpu`, `null`, `size`, `tsan`, `asan`, the pre-push hook |
-| `SOURCE_DIRS` | Directories, space-separated, where code may not cite a closed ticket (`scripts/cited-tickets.sh`, also used by `merge-on-green.sh`) | `"engine plugin tools tests"` | `docs` |
+| `SOURCE_DIRS` | Directories, space-separated, where code may not cite a closed ticket or one the branch will close (`scripts/cited-tickets.sh`, also used by `merge-on-green.sh`; "Ticket citations") | `"engine plugin tools tests"` | `docs` |
 | `TESTS_DIR` | The tests' source directory, and their build folder under `BUILD_DIR`; one directory | `tests` | `docs`, `screens`, `cpu`, `null`, `paint`, `size`, `validate` |
 | `TEST_STEP` | The `test` stage's heading: the name of the CI step that runs it. Optional: it defaults to eq1's | `"Engine and Plugin Shell tests"` | (optional: heads `test`) |
 | `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size` (and `docs`/`colours` when set) |
@@ -233,6 +233,14 @@ plugkit's `CODING_STANDARDS.md` holds the coding standards plugkit and its plugi
   ```
 
 - **From v0.3.0:** the file and its check come with plugkit v0.3.0. A plugin pinning an earlier tag has neither; the PR that bumps it to v0.3.0 adds its copy.
+
+### Ticket citations
+
+Code points only at open tickets (`CODING_STANDARDS.md`, "Comments and docs state current behaviour"). `scripts/check.sh docs` asks GitHub through gh, in the repository the plugin's remote names, so it is skipped where gh isn't signed in.
+
+- **Closed tickets:** code under `SOURCE_DIRS` citing a closed issue fails, `file:line: points at closed ticket #N`.
+- **Tickets the branch will close:** these count as closed too, so a citation the merge would turn stale fails on the branch, `file:line: points at #N, which this branch closes; say what the code does now`. When the branch has an open PR, they are its `closingIssuesReferences` and each `Closes`/`Fixes`/`Resolves #N` in its body, read by `scripts/closing-tickets.sh`, as `merge-on-green.sh` reads them. With no PR yet, it is the number the branch name starts with (`<N>-...`), when that names an open issue in this repository. A number that doesn't, such as a plugkit branch named for a comp1 ticket, is skipped. On `main`, a detached HEAD, or a branch with neither, only closed tickets count.
+- **A citation:** a whole `#N` in a tracked file under `SOURCE_DIRS`, Markdown aside, as `scripts/cited-tickets.sh` reads it.
 
 ### A plugin's CI
 
