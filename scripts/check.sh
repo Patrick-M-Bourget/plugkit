@@ -6,15 +6,15 @@
 #
 #   scripts/check.sh            docs, hooks, build, test, cpu, paint, tsan and validate (not null, which needs a ref)
 #   scripts/check.sh docs       every doc section cited in code (docs/<file>.md, "<Section>") exists, GLOSSARY.md is the only
-#                               glossary, no two ADRs share a number, CODING_STANDARDS.md shares plugkit's, the lab's parameter ranges match the
-#                               plugin's, code points at no closed ticket (when gh is signed in), no test reads a saved state as raw bytes, runs
-#                               timers itself, has a non-ASCII title, reads a <prefix> environment variable or opens a
-#                               Graphics on an image outside
-#                               the editor harness, and no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
+#                               glossary, no two ADRs share a number, CODING_STANDARDS.md shares plugkit's, the lab's
+#                               parameter ranges match the plugin's, code points at no closed ticket nor one the branch will
+#                               close (when gh is signed in; README.md, "Ticket citations"), no test reads a saved state as raw
+#                               bytes, runs timers itself, has a non-ASCII title, reads a <prefix> environment variable or opens
+#                               a Graphics on an image outside the editor harness, and no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh colours    only that last check: no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh hooks      the Claude Code worktree hook's, merge-on-green.sh's, the git pre-push hook's, the
-#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the plugin
-#                               config's and the README's needed keys' tests, against fakes and scratch repos
+#                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the docs ticket checks',
+#                               the plugin config's and the README's needed keys' tests, against fakes and scratch repos
 #                               (not run by git hooks, which run docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
@@ -199,17 +199,37 @@ docs() {
         fi
     done
     # Code points only at open tickets (the plugin's CODING_STANDARDS.md, "Comments and docs state current behaviour"):
-    # a closed one is history, which belongs in commit messages. It asks GitHub which are closed, so it
-    # is skipped where gh isn't signed in (CI's docs stage among them).
-    local closed stale
+    # a closed one is history, which belongs in commit messages. The tickets the current branch will close count as
+    # closed too (scripts/closing-tickets.sh --branch: its open PR's, or the open issue its name's leading number
+    # names), since its merge closes them. It asks GitHub, so it is skipped where gh isn't signed in (CI's docs stage
+    # among them).
+    local closed closing stale own
     if closed=$(gh issue list --state closed --limit 2000 --json number --jq '.[].number' 2>/dev/null) && [ -n "$closed" ]; then
         # shellcheck disable=SC2086 # one ticket number per word
         stale=$("$PLUGKIT_DIR/scripts/cited-tickets.sh" $closed | sed -E 's/:(#[0-9]+)$/: points at closed ticket \1/' || true)
         if [ -n "$stale" ]; then
             printf '%s\n' "$stale" | sed 's/$/; say what the code does now, or point at an open ticket/' >&2
             broken=1
-        else
-            echo "Code points at no closed ticket"
+        fi
+        if ! closing=$("$PLUGKIT_DIR/scripts/closing-tickets.sh" --branch 2>/dev/null); then
+            echo "Skipped the closing-ticket check: could not read which tickets this branch closes"
+            closing=
+        fi
+        # shellcheck disable=SC2086 # one ticket number per word
+        own=$("$PLUGKIT_DIR/scripts/cited-tickets.sh" $closing |
+            sed -E 's/:(#[0-9]+)$/: points at \1, which this branch closes; say what the code does now/' || true)
+        if [ -n "$own" ]; then
+            printf '%s\n' "$own" >&2
+            broken=1
+        fi
+        if [ -z "$stale$own" ]; then
+            if [ -n "$closing" ]; then
+                # shellcheck disable=SC2086 # one ticket number per word
+                closing=$(printf '#%s, ' $closing)
+                echo "Code points at no closed ticket, nor at one this branch closes (${closing%, })"
+            else
+                echo "Code points at no closed ticket"
+            fi
         fi
     else
         echo "Skipped the closed-ticket check: gh isn't signed in"
@@ -267,6 +287,8 @@ hooks() {
     "$PLUGKIT_DIR/scripts/cpu-ab.test.sh"
     step "Ticket citations"
     "$PLUGKIT_DIR/scripts/cited-tickets.test.sh"
+    step "Closed and closing tickets"
+    "$PLUGKIT_DIR/scripts/closing-tickets.test.sh"
     step "Plugin config"
     "$PLUGKIT_DIR/scripts/plugin-config.test.sh"
     step "Needed keys"
