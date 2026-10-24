@@ -38,8 +38,14 @@ struct Hosted : harness::OpenEditor<TestProcessor>
         juce::String ringTitle() override { return "Band 4 Dynamic Range"; }
         juce::String ringValue() override { return value; }
         void ringMouseDown (staple::Knob&, const juce::MouseEvent&) override { ++presses; }
+        // Typed into through its Readout while typeable, as eq1's Dynamic Range ring is.
+        bool ringAcceptsTypedText() const override { return typeable; }
+        juce::String ringTextToType() override { return value.upToFirstOccurrenceOf (" dB", false, false); }
+        void ringCommitTypedText (const juce::String& text) override { typed.add (text); }
         juce::String value { "+6.0 dB" };
         int presses = 0;
+        bool typeable = false;
+        juce::StringArray typed;
     } wideLane;
 
     Hosted()
@@ -102,6 +108,16 @@ struct Hosted : harness::OpenEditor<TestProcessor>
         window.pointerAt (knob, knob.getFaceCentre());
         REQUIRE (underPointer() == &knob);
         REQUIRE (knob.isTooltipShown());
+    }
+
+    // Two clicks at at, in c's coordinates, through the window.
+    void doubleClick (juce::Component& c, juce::Point<float> at)
+    {
+        for (int click = 0; click < 2; ++click)
+        {
+            window.pointerAt (c, at, juce::ModifierKeys::leftButtonModifier);
+            window.pointerAt (c, at);
+        }
     }
 };
 
@@ -298,11 +314,7 @@ TEST_CASE ("A Knob Readout stays while the pointer moves slowly from the knob's 
     REQUIRE (inGap > 0);
     REQUIRE (Hosted::underPointer() == &readout);
 
-    for (int click = 0; click < 2; ++click)
-    {
-        e.window.pointerAt (readout, onCard, juce::ModifierKeys::leftButtonModifier);
-        e.window.pointerAt (readout, onCard);
-    }
+    e.doubleClick (readout, onCard);
     CHECK (readout.isEditing());
 }
 
@@ -688,6 +700,78 @@ TEST_CASE ("A press just outside a ring's outer edge, on its nearest whole pixel
     }
     CHECK (e.wideLane.presses == 1);
     CHECK (knob.getValue() == before);
+}
+
+namespace
+{
+// The pointer on the ringed Gain knob's ring, then straight onto its Readout's centre in one move, which leaves the
+// face alone: the Readout keeps the ring's content.
+staple::KnobTooltip& ontoRingsReadout (Hosted& e)
+{
+    auto& knob = e.wideRingedGain();
+    e.window.pointerAt (knob, knob.getFaceCentre() + direction (30.0f) * ringMiddleRadius (knob));
+    REQUIRE (knob.isTooltipShown());
+    auto& readout = *knob.getKnobTooltip();
+    e.window.pointerAt (readout, readout.getLocalBounds().toFloat().getCentre());
+    REQUIRE (Hosted::underPointer() == &readout);
+    REQUIRE (readout.titleText() == "Band 4 Dynamic Range");
+    return readout;
+}
+
+// value typed into the open field, and Enter.
+void typeAndEnter (staple::KnobTooltip& readout, const juce::String& value)
+{
+    REQUIRE (readout.getEditor() != nullptr);
+    readout.getEditor()->setText (value);
+    readout.getEditor()->keyPressed (juce::KeyPress (juce::KeyPress::returnKey));
+    REQUIRE_FALSE (readout.isEditing());
+}
+} // namespace
+
+TEST_CASE ("A double-click on a ring's own Knob Readout types into the ring, wherever the pointer goes while typing")
+{
+    Hosted e;
+    e.wideLane.typeable = true;
+    auto& readout = ontoRingsReadout (e);
+    auto& knob = e.gain();
+    const auto gainBefore = knob.getValue();
+
+    e.doubleClick (readout, readout.getLocalBounds().toFloat().getCentre());
+    REQUIRE (readout.isEditing());
+    CHECK (readout.getEditor()->getText() == "+6.0");
+    // Onto the face while typing, where the Readout shows the knob's own content.
+    e.window.pointerAt (knob, knob.getFaceCentre());
+    REQUIRE_FALSE (knob.isTooltipOnRing());
+    typeAndEnter (readout, "+3");
+
+    CHECK (e.wideLane.typed == juce::StringArray { "+3" });
+    CHECK (knob.getValue() == gainBefore);
+}
+
+TEST_CASE ("A double-click on a ring's own Knob Readout opens no field when the ring takes no typing")
+{
+    Hosted e;
+    auto& readout = ontoRingsReadout (e);
+    e.doubleClick (readout, readout.getLocalBounds().toFloat().getCentre());
+    CHECK_FALSE (readout.isEditing());
+}
+
+TEST_CASE ("A double-click on a ringed knob's own Knob Readout types into the knob")
+{
+    Hosted e;
+    e.wideLane.typeable = true;
+    auto& knob = e.wideRingedGain();
+    e.hover (knob);
+    auto& readout = *knob.getKnobTooltip();
+    e.window.pointerAt (readout, readout.getLocalBounds().toFloat().getCentre());
+    REQUIRE (readout.titleText() == "Gain");
+
+    e.doubleClick (readout, readout.getLocalBounds().toFloat().getCentre());
+    REQUIRE (readout.isEditing());
+    typeAndEnter (readout, "4");
+
+    CHECK (std::abs (knob.getValue() - 4.0) < 0.05);
+    CHECK (e.wideLane.typed.isEmpty());
 }
 
 // Closely packed knobs, as on eq1's Band panel: the way to one knob's Readout crosses its neighbour's face.

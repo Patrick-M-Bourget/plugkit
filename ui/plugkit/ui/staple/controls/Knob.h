@@ -24,9 +24,9 @@ double draggedAlongRange (juce::Slider& slider, double from, float pixels, bool 
 // (setDoubleClickReturnValue: SliderAttachment sets the parameter's default), and a drag on its second
 // press carries on from there, as one gesture (KeyboardSlider::startMouseDrag). The arrow
 // keys step it as any KeyboardSlider. While the pointer is over it, or it is dragged, a KnobTooltip shows
-// its title and value text; a double-click on the tooltip types a value. Showing it hides any other knob's on
-// the same overlay layer, unless a value is being typed into that one. Disabled, it dims to 35 % and
-// ignores the mouse and keys.
+// its title and value text; a double-click on the tooltip types a value (the ring's, while it shows the
+// ring's). Showing it hides any other knob's on the same overlay layer, unless a value is being typed into that one.
+// Disabled, it dims to 35 % and ignores the mouse and keys.
 //
 // A knob can reserve a lane outside its face (the Gain knob's Dynamic Range ring): presses, drags and
 // hovers there go to its RingHandler, which also paints the lane.
@@ -60,6 +60,13 @@ public:
         // What the tooltip shows while the lane is hovered or dragged ("Band 4 Dynamic Range", "+6.0 dB").
         virtual juce::String ringTitle() { return {}; }
         virtual juce::String ringValue() { return {}; }
+        // Whether a double-click on the Readout, while it shows the ring's content, opens a field that types into the
+        // ring; without it the double-click does nothing there.
+        virtual bool ringAcceptsTypedText() const { return false; }
+        // What that field starts with: the ring's value as typed, without its unit.
+        virtual juce::String ringTextToType() { return {}; }
+        // The text typed into that field, on Enter: the ring sets its value from it, as one gesture.
+        virtual void ringCommitTypedText (const juce::String& text) { juce::ignoreUnused (text); }
     };
     // A lane width wide, centred offset outside the face's edge (the Gain knob's 12 px lane at r + 10).
     // nullptr removes it.

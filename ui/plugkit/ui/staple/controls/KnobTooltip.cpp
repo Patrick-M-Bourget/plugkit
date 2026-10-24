@@ -1,5 +1,5 @@
-// Copied from eq1's plugin/staple/controls/KnobTooltip.cpp (eq1 at dbb1127), and its watchdog (TipWatchdog), which eq1
-// takes from here; listed in eq1#231.
+// Copied from eq1's plugin/staple/controls/KnobTooltip.cpp (eq1 at dbb1127), and its watchdog (TipWatchdog) and its
+// typing into a ring's content (Knob::RingHandler::ringAcceptsTypedText), which eq1 takes from here; listed in eq1#231.
 
 #include "KnobTooltip.h"
 
@@ -92,8 +92,15 @@ void KnobTooltip::startEditing()
 {
     if (isEditing())
         return;
+    // Into the ring while this shows the ring's content, if the ring takes typing, else nothing; into the knob
+    // otherwise. Which of them is kept until the field closes, wherever the pointer goes meanwhile.
+    auto* ring = knob.isTooltipOnRing() ? knob.ring : nullptr;
+    if (ring != nullptr && ! ring->ringAcceptsTypedText())
+        return;
+    typingIntoRing = ring != nullptr;
     // The value as typed: without its unit.
-    editor = makeTypeInField (title + " value", knob.textToType (value), [this] { stopEditing (true); }, [this] { stopEditing (false); });
+    const auto text = typingIntoRing ? ring->ringTextToType() : knob.textToType (value);
+    editor = makeTypeInField (title + " value", text, [this] { stopEditing (true); }, [this] { stopEditing (false); });
     addAndMakeVisible (*editor);
     resized();
     repaint();
@@ -105,8 +112,15 @@ void KnobTooltip::stopEditing (bool commit)
     if (editor == nullptr)
         return;
     const auto text = closeTypeInField (editor);
-    if (commit)
+    if (commit && typingIntoRing)
+    {
+        if (knob.ring != nullptr)
+            knob.ring->ringCommitTypedText (text);
+    }
+    else if (commit)
+    {
         knob.commitTypedText (text);
+    }
     refresh();
     juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<KnobTooltip> (this)] {
         if (safe != nullptr && ! safe->isEditing() && ! safe->isMouseOver (true))
