@@ -15,7 +15,7 @@ constexpr int gap = 6;
 constexpr int sidewaysHeightRatio = 4;
 } // namespace
 
-TooltipWindow::TooltipWindow (juce::Component* parent) : juce::TooltipWindow (parent)
+TooltipWindow::TooltipWindow (juce::Component* parent, TipSource tipFor) : juce::TooltipWindow (parent), tipSource (std::move (tipFor))
 {
     fading.setInterceptsMouseClicks (false, false);
     fading.setAccessible (false);
@@ -32,7 +32,7 @@ TooltipWindow::TooltipWindow (juce::Component* parent) : juce::TooltipWindow (pa
 juce::String TooltipWindow::getTipFor (juce::Component& c)
 {
     control = &c;
-    return juce::TooltipWindow::getTipFor (c);
+    return tipSource != nullptr ? tipSource (c) : juce::TooltipWindow::getTipFor (c);
 }
 
 void TooltipWindow::moved() { placeByControl(); }

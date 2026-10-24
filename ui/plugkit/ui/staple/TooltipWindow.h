@@ -7,6 +7,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
+
 namespace staple
 {
 
@@ -24,12 +26,19 @@ namespace staple
 // that shows next. JUCE only notices the pointer has gone on its next timer tick, and hides the tip
 // abruptly then; this hears of it from the pointer's events, which JUCE sends to every Tooltip window.
 // A click or a wheel turn hides a tip, and ends a fade, at once.
+//
+// It asks a control for its tip through a TipSource: JUCE's getTipFor unless one is given. JUCE's answers
+// nothing to a process in the background, such as a test's, so a test gives one that answers as JUCE's does
+// in the foreground, and JUCE's own timer shows and hides tips there as in a host.
 class TooltipWindow final : public juce::TooltipWindow
 {
 public:
     static constexpr int fadeOutMs = 100;
 
-    explicit TooltipWindow (juce::Component* parent);
+    // A control's tip, or nothing for none.
+    using TipSource = std::function<juce::String (juce::Component&)>;
+
+    explicit TooltipWindow (juce::Component* parent, TipSource tipFor = {});
 
     juce::String getTipFor (juce::Component& c) override;
     void moved() override;
@@ -59,6 +68,7 @@ private:
         void paint (juce::Graphics& g) override;
     };
 
+    TipSource tipSource;
     juce::Component::SafePointer<juce::Component> control, showingFor;
     bool placing = false;
     Fading fading;
