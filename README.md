@@ -184,7 +184,7 @@ FetchContent_MakeAvailable(plugkit)
 | `SOURCE_DIRS` | Directories, space-separated, where code may not cite a closed ticket or one the branch will close (`scripts/cited-tickets.sh`, also used by `merge-on-green.sh`; "Ticket citations") | `"engine plugin tools tests"` | `docs` |
 | `TESTS_DIR` | The tests' source directory, and their build folder under `BUILD_DIR`; one directory | `tests` | `docs`, `screens`, `cpu`, `null`, `paint`, `size`, `validate` |
 | `TEST_STEP` | The `test` stage's heading: the name of the CI step that runs it. Optional: it defaults to eq1's | `"Engine and Plugin Shell tests"` | (optional: heads `test`) |
-| `TEST_TARGETS` | The test executables' CMake targets, space-separated, that `focus` builds. Optional: it defaults to `<name>_engine_tests <name>_plugin_tests` | `"eq1_engine_tests eq1_plugin_tests"` | (optional: built by `focus`) |
+| `TEST_TARGETS` | The test executables' CMake targets, space-separated, that `focus` and `asan` build. Optional: it defaults to `<name>_engine_tests <name>_plugin_tests` | `"eq1_engine_tests eq1_plugin_tests"` | (optional: built by `focus`, `asan`) |
 | `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size` (and `docs`/`colours` when set) |
 | `ENGINE_DIR` | The Engine's build folder, for `size`'s code by library | `engine` | `size` |
 | `EDITOR_HARNESS` | The one test file allowed to run timers, read `<prefix>` variables and open a Graphics on an image. Optional: leave it out when the harness comes from plugkit-ui | `tests/plugin/EditorHarness.h` | (optional: read by `docs`) |

@@ -141,12 +141,12 @@ focus_project() {
     } > "$repo/CMakeLists.txt"
 }
 
-# expect_built <what> <repo> <target...>: each target was built in the repo's build folder.
+# expect_built <what> <build folder> <target...>: each target was built in the folder.
 expect_built() {
-    local what=$1 repo=$2 target
+    local what=$1 dir=$2 target
     shift 2
     for target in "$@"; do
-        [ -f "$repo/build/built-$target" ] || { echo "FAIL: $what: $target wasn't built" >&2; failures=$((failures + 1)); }
+        [ -f "$dir/built-$target" ] || { echo "FAIL: $what: $target wasn't built" >&2; failures=$((failures + 1)); }
     done
 }
 
@@ -155,18 +155,56 @@ focus_project "$repo" demo_engine_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
     "focus configures a missing build folder, then builds the default test targets and runs only the matching tests" \
     "$repo" focus Tooltip
-expect_built "focus builds <name>_engine_tests and <name>_plugin_tests by default" "$repo" demo_engine_tests demo_plugin_tests
+expect_built "focus builds <name>_engine_tests and <name>_plugin_tests by default" "$repo/build" demo_engine_tests demo_plugin_tests
 
 repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_plugin_tests"')
 focus_project "$repo" demo_dsp_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" "focus builds the TEST_TARGETS the config names" \
     "$repo" focus Tooltip
-expect_built "focus builds every TEST_TARGETS target" "$repo" demo_dsp_tests demo_plugin_tests
+expect_built "focus builds every TEST_TARGETS target" "$repo/build" demo_dsp_tests demo_plugin_tests
 
 repo=$(plugin "${base[@]}")
 focus_project "$repo" demo_engine_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect fail "No tests were found" "focus with a regex matching no test fails" \
     "$repo" focus Nothing
+
+# asan, on a stand-in macOS (uname) whose AddressSanitizer starts (a c++ whose programs exit at once), so it runs
+# anywhere and quickly: focus's project without its failing test, plus a target that isn't a test, which must stay
+# unbuilt.
+fake_mac() {
+    local bin=$1/fake-bin
+    mkdir -p "$bin"
+    printf '#!/usr/bin/env bash\necho Darwin\n' > "$bin/uname"
+    printf '#!/usr/bin/env bash\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n%s\nchmod +x "$out"\n' \
+        "printf '#!/bin/sh\\nexit 0\\n' > \"\$out\"" > "$bin/c++"
+    chmod +x "$bin/uname" "$bin/c++"
+    printf '%s\n' "$bin"
+}
+
+# expect_unbuilt <what> <build folder> <target...>: no target was built in the folder.
+expect_unbuilt() {
+    local what=$1 dir=$2 target
+    shift 2
+    for target in "$@"; do
+        [ ! -f "$dir/built-$target" ] || { echo "FAIL: $what: $target was built" >&2; failures=$((failures + 1)); }
+    done
+}
+
+repo=$(plugin "${base[@]}")
+focus_project "$repo" demo_engine_tests demo_plugin_tests demo_tool
+sed -i.bak /Other.fails/d "$repo/CMakeLists.txt" && rm "$repo/CMakeLists.txt.bak"
+PATH=$(fake_mac "$repo"):$PATH FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
+    "asan builds the default test targets and runs the tests" "$repo" asan
+expect_built "asan builds <name>_engine_tests and <name>_plugin_tests by default" "$repo/build-asan" demo_engine_tests demo_plugin_tests
+expect_unbuilt "asan builds only the test targets" "$repo/build-asan" demo_tool
+
+repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_plugin_tests"')
+focus_project "$repo" demo_dsp_tests demo_plugin_tests demo_tool
+sed -i.bak /Other.fails/d "$repo/CMakeLists.txt" && rm "$repo/CMakeLists.txt.bak"
+PATH=$(fake_mac "$repo"):$PATH FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
+    "asan builds the TEST_TARGETS the config names" "$repo" asan
+expect_built "asan builds every TEST_TARGETS target" "$repo/build-asan" demo_dsp_tests demo_plugin_tests
+expect_unbuilt "asan builds only the TEST_TARGETS" "$repo/build-asan" demo_tool
 
 repo=$(plugin "${base[@]}")
 expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says which" "$repo" validate
