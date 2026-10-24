@@ -35,7 +35,7 @@ public:
     juce::String titleText() const { return title; }
     juce::String valueText() const { return value; }
 
-    // Reads the knob's title and value again, and places itself by the knob.
+    // Reads the knob's title and value again, unless a value is being typed, and places itself by the knob.
     void refresh();
     void appear();
     void disappear();

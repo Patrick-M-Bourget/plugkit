@@ -30,8 +30,13 @@ KnobTooltip::~KnobTooltip() = default;
 
 void KnobTooltip::refresh()
 {
-    title = knob.tooltipTitle();
-    value = knob.tooltipValue();
+    // While a value is typed, the card keeps the content the field was opened on (the ring's or the knob's), wherever
+    // the pointer goes; it reads them again once the field closes (stopEditing).
+    if (! isEditing())
+    {
+        title = knob.tooltipTitle();
+        value = knob.tooltipValue();
+    }
     const int width = std::max (minimumWidth, static_cast<int> (readoutCardWidth (title, value)));
     const int height = readoutCard::height;
 

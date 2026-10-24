@@ -821,6 +821,26 @@ TEST_CASE ("A double-click on a ring's own Knob Readout types into the ring, whe
     CHECK (knob.getValue() == gainBefore);
 }
 
+TEST_CASE ("A Knob Readout keeps the ring's content while a value is typed into it, wherever the pointer goes")
+{
+    Hosted e;
+    e.wideLane.typeable = true;
+    auto& readout = ontoRingsReadout (e);
+    auto& knob = e.gain();
+    e.doubleClick (readout, readout.getLocalBounds().toFloat().getCentre());
+    REQUIRE (readout.isEditing());
+
+    // Onto the face while typing: the field is still the ring's, and so is the card round it.
+    e.window.pointerAt (knob, knob.getFaceCentre());
+    REQUIRE_FALSE (knob.isTooltipOnRing());
+    CHECK (readout.titleText() == "Band 4 Dynamic Range");
+    CHECK (readout.valueText() == "+6.0 dB");
+
+    // Once the field closes, the card shows what is under the pointer: the knob's own.
+    typeAndEnter (readout, "+3");
+    CHECK (readout.titleText() == "Gain");
+}
+
 TEST_CASE ("A double-click on a ring's own Knob Readout opens no field when the ring takes no typing")
 {
     Hosted e;
