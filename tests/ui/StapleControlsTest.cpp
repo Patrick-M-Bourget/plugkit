@@ -965,6 +965,36 @@ TEST_CASE ("The Staple controls kit's gallery", "[.screens]")
     harness::writeSnapshot (w, "gallery");
 }
 
+// Not run by ctest: draws the kit's knob sizes side by side, small to hero, at one value, as knob-sizes
+// (harness::writeSnapshot), for checking by hand that every size reads as the same recipe.
+TEST_CASE ("The Staple controls kit's knob sizes", "[.screens]")
+{
+    Kit kit;
+    auto& w = kit.window;
+    w.setSize (500, 200);
+    w.setOpaque (true);
+    struct Background final : juce::Component
+    {
+        void paint (juce::Graphics& g) override { g.fillAll (staple::tokens::colour::bg0); }
+    } background;
+    kit.add (background, w.getLocalBounds());
+
+    namespace t = staple::tokens;
+    std::vector<std::unique_ptr<staple::Knob>> knobs;
+    int x = 16;
+    for (const float d : { t::knob::small, t::knob::q, t::knob::gain, t::knob::hero })
+    {
+        auto& k = *knobs.emplace_back (std::make_unique<staple::Knob> (d));
+        k.setArcColour (t::colour::curveMain);
+        k.setRange (0.0, 1.0);
+        k.setValue (0.7);
+        const int s = k.getIdealSize();
+        kit.add (k, { x, w.getHeight() / 2 - s / 2, s, s });
+        x += s + 8;
+    }
+    harness::writeSnapshot (w, "knob-sizes");
+}
+
 TEST_CASE ("A Knob's tooltip and a Popover open inside the editor's scaled content, so they scale with it")
 {
     Kit kit;
