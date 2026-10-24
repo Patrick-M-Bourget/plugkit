@@ -1,4 +1,5 @@
-// Copied from eq1's plugin/staple/controls/KnobTooltip.cpp (eq1 at dbb1127); listed in eq1#231.
+// Copied from eq1's plugin/staple/controls/KnobTooltip.cpp (eq1 at dbb1127), and its watchdog (TipWatchdog), which eq1
+// takes from here; listed in eq1#231.
 
 #include "KnobTooltip.h"
 
@@ -17,7 +18,12 @@ constexpr int minimumWidth = 86;
 constexpr int fieldWidth = 74, fieldHeight = 20;
 } // namespace
 
-KnobTooltip::KnobTooltip (Knob& k) : knob (k)
+KnobTooltip::KnobTooltip (Knob& k)
+    : knob (k),
+      watchdog ([this] (juce::Point<float> pointer) {
+          if (! knob.isMouseButtonDown())
+              knob.hideTooltipUnlessHovered (pointer.roundToInt());
+      })
 {
     setWantsKeyboardFocus (false);
     setMouseCursor (juce::MouseCursor::IBeamCursor);
@@ -51,10 +57,12 @@ void KnobTooltip::appear()
     toFront (false);
     juce::Desktop::getInstance().getAnimator().fadeIn (this, tokens::motion::dur1Ms);
     setVisible (true);
+    watchdog.start();
 }
 
 void KnobTooltip::disappear()
 {
+    watchdog.stop();
     if (isEditing())
         stopEditing (false);
     juce::Desktop::getInstance().getAnimator().cancelAnimation (this, false);
@@ -107,7 +115,7 @@ void KnobTooltip::stopEditing (bool commit)
     refresh();
     juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<KnobTooltip> (this)] {
         if (safe != nullptr && ! safe->isEditing() && ! safe->isMouseOver (true))
-            safe->knob.hideTooltipUnlessHovered (juce::Desktop::getMousePosition());
+            safe->knob.hideTooltipUnlessHovered (TipWatchdog::pointer().roundToInt());
     });
 }
 

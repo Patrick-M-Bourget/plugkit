@@ -54,6 +54,7 @@ add_executable(plugkit_plugin_tests
     ui/StapleControlsTest.cpp
     ui/StapleTest.cpp
     ui/StateTest.cpp
+    ui/TooltipHostedTest.cpp
     ui/UiScaleTest.cpp
     ui/ValueTextTest.cpp
 )

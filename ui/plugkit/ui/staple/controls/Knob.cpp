@@ -1,10 +1,11 @@
 // Copied from eq1's plugin/staple/controls/Knob.cpp (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and its
-// Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin; listed in
-// eq1#231.
+// Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin, as
+// TipWatchdog::isPointerOver checks it; listed in eq1#231.
 
 #include "Knob.h"
 
 #include "../Painting.h"
+#include "../TipWatchdog.h"
 #include "KnobTooltip.h"
 #include "Overlay.h"
 
@@ -290,9 +291,8 @@ void Knob::hideTooltipUnlessHovered (juce::Point<int> screenPosition)
     // Over the face (or the ring), not the shadow margin round it: JUCE sends the exit as the pointer leaves the face,
     // usually still inside the knob's bounds, and the knob hears nothing more. A hidden knob or parent sends one inside
     // them too.
-    if (isShowing() && isEnabled() && contains (getLocalPoint (nullptr, screenPosition)))
-        return;
-    if (tooltip->isShowing() && tooltip->contains (tooltip->getLocalPoint (nullptr, screenPosition)))
+    const auto pointer = screenPosition.toFloat();
+    if ((isEnabled() && TipWatchdog::isPointerOver (*this, pointer)) || TipWatchdog::isPointerOver (*tooltip, pointer))
         return;
     hideTooltip();
 }
