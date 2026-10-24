@@ -40,9 +40,7 @@ void KnobTooltip::refresh()
 
     if (auto* layer = getParentComponent())
     {
-        const float r = knob.getFaceRadius();
-        const auto face = juce::Rectangle<float> (2.0f * r, 2.0f * r).withCentre (knob.getFaceCentre());
-        const auto area = layer->getLocalArea (&knob, face).toNearestInt();
+        const auto area = layer->getLocalArea (&knob, knob.faceArea()).toNearestInt();
         // Over the label, from its top; just under the face without one.
         auto* label = knob.getLabel();
         const auto top = label != nullptr && label->isShowing() ? std::optional<int> (layer->getLocalArea (label, label->getLocalBounds()).getY())

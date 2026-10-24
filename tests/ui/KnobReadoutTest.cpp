@@ -16,11 +16,13 @@ namespace
 
 using plugkit::test::TestProcessor;
 
-// The test processor's editor in a host's window. It has a Small Knob beside its own two, in the same body.
+// The test processor's editor in a host's window. It has a Small Knob beside its own two, in the same body, and a label
+// under its Frequency knob, which the knob's Readout covers once labelFrequency gives the knob it.
 struct Hosted : harness::OpenEditor<TestProcessor>
 {
     harness::HostWindow window { *editor };
     staple::Knob small { staple::tokens::knob::small, "Small" };
+    juce::Label label { {}, "Frequency" };
 
     Hosted()
     {
@@ -28,9 +30,21 @@ struct Hosted : harness::OpenEditor<TestProcessor>
         body.addAndMakeVisible (small);
         small.setBounds (290, 0, small.getIdealSize(), small.getIdealSize());
         REQUIRE (body.getLocalBounds().contains (small.getBounds()));
+        body.addAndMakeVisible (label);
+        label.setBounds (frequency().getBounds().withY (frequency().getBottom()).withHeight (16));
     }
 
-    ~Hosted() { small.getParentComponent()->removeChildComponent (&small); }
+    ~Hosted()
+    {
+        small.getParentComponent()->removeChildComponent (&small);
+        label.getParentComponent()->removeChildComponent (&label);
+    }
+
+    staple::Knob& labelFrequency()
+    {
+        frequency().setLabel (&label);
+        return frequency();
+    }
 
     staple::Knob& frequency()
     {
@@ -170,4 +184,80 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
     CHECK (knob.isTooltipShown());
     if (doing == "drags")
         e.window.pointerAt (knob, rightOf (knob));
+}
+
+namespace
+{
+// The pointer walked from a to b, both in the window's coordinates, a few px per event, as a hand moves it slowly;
+// each() runs after every step.
+void walk (harness::HostWindow& window, juce::Point<float> a, juce::Point<float> b, const std::function<void()>& each)
+{
+    constexpr float stepPx = 3.0f;
+    const int steps = std::max (1, static_cast<int> (std::ceil (a.getDistanceFrom (b) / stepPx)));
+    for (int i = 1; i <= steps; ++i)
+    {
+        window.pointerAtWindow (a + (b - a) * (static_cast<float> (i) / static_cast<float> (steps)));
+        each();
+    }
+}
+
+// The knob with a label, whose Readout covers the label from its top, 20 px under the face; or without, whose Readout
+// is 6 px under the face.
+staple::Knob& labelledOrNot (Hosted& e, bool labelled) { return labelled ? e.labelFrequency() : e.small; }
+} // namespace
+
+TEST_CASE ("A Knob Readout stays while the pointer moves slowly from the knob's face onto it, and a double-click there types")
+{
+    Hosted e;
+    const bool labelled = GENERATE (true, false);
+    INFO ((labelled ? "a knob with a label" : "a knob without one"));
+    auto& knob = labelledOrNot (e, labelled);
+    e.hover (knob);
+    auto& readout = *knob.getKnobTooltip();
+    const auto onCard = readout.getLocalBounds().toFloat().getCentre();
+
+    // Through the gap between face and Readout, where neither is under the pointer: the knob's margin, its label.
+    int inGap = 0;
+    walk (e.window, e.window.getLocalPoint (&knob, knob.getFaceCentre()), e.window.getLocalPoint (&readout, onCard), [&] {
+        if (Hosted::underPointer() != &knob && Hosted::underPointer() != &readout)
+        {
+            ++inGap;
+            // A pause there, which the watchdog checks.
+            if (inGap == 1)
+                harness::settle (2 * staple::TipWatchdog::periodMs);
+        }
+        CHECK (knob.isTooltipShown());
+    });
+    REQUIRE (inGap > 0);
+    REQUIRE (Hosted::underPointer() == &readout);
+
+    for (int click = 0; click < 2; ++click)
+    {
+        e.window.pointerAt (readout, onCard, juce::ModifierKeys::leftButtonModifier);
+        e.window.pointerAt (readout, onCard);
+    }
+    CHECK (readout.isEditing());
+}
+
+TEST_CASE ("A Knob Readout hides once the pointer leaves the way from the knob's face to it sideways")
+{
+    Hosted e;
+    const bool labelled = GENERATE (true, false);
+    INFO ((labelled ? "a knob with a label" : "a knob without one"));
+    auto& knob = labelledOrNot (e, labelled);
+    e.hover (knob);
+    auto& readout = *knob.getKnobTooltip();
+    const auto face = e.window.getLocalPoint (&knob, knob.getFaceCentre());
+    const auto card = e.window.getLocalArea (&readout, readout.getLocalBounds()).toFloat();
+
+    // Down into the gap, 2 px above the Readout.
+    const juce::Point<float> inGap { face.x, card.getY() - 2.0f };
+    walk (e.window, face, inGap, [] {});
+    REQUIRE (Hosted::underPointer() != &knob);
+    REQUIRE (Hosted::underPointer() != &readout);
+    REQUIRE (knob.isTooltipShown());
+
+    // Sideways, past the Readout's edge.
+    walk (e.window, inGap, { card.getRight() + 10.0f, inGap.y }, [] {});
+    CHECK (harness::settleUntil ([&] { return ! knob.isTooltipShown(); }));
 }

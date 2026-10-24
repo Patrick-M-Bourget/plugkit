@@ -34,6 +34,14 @@ bool TipWatchdog::isPointerOver (juce::Component& c, juce::Point<float> screenPo
     return c.isShowing() && c.contains (c.getLocalPoint (nullptr, screenPosition));
 }
 
+bool TipWatchdog::isPointerWithin (juce::Component& c, const juce::Path& area, juce::Point<float> screenPosition)
+{
+    if (! c.isShowing() || ! area.contains (c.getLocalPoint (nullptr, screenPosition)))
+        return false;
+    auto& window = *c.getTopLevelComponent();
+    return window.contains (window.getLocalPoint (nullptr, screenPosition));
+}
+
 juce::Point<float> TipWatchdog::pointer()
 {
     // The main mouse source's screen position is the OS's live one, not its last event's.

@@ -104,8 +104,15 @@ protected:
 private:
     double valueDraggedBy (double from, float pixels, bool fine) override;
     friend class KnobTooltip;
+    // Hides the Readout unless the pointer at screenPosition is over the face (or ring) of the knob, enabled, or on its
+    // way from there to the Readout, or on the Readout.
     void hideTooltipUnlessHovered (juce::Point<int> screenPosition);
     void hideTooltip();
+    // The face's square, in the knob's coordinates.
+    juce::Rectangle<float> faceArea() const;
+    // Whether the pointer at screenPosition crosses between the face and the Readout showing: between the face's
+    // centre and the Readout's near edge, from the face's width to the Readout's, in the Readout's window.
+    bool isOnWayToReadout (juce::Point<float> screenPosition);
     float arcRadius() const;
     float arcStartProportion();
 

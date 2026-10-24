@@ -32,6 +32,9 @@ public:
     // Whether the pointer at screenPosition is over c: c is showing, its hit area holds the point, and c's window is
     // the one under it, not hidden or covered there by another (ComponentPeer::contains asks the OS).
     static bool isPointerOver (juce::Component& c, juce::Point<float> screenPosition);
+    // Whether the pointer at screenPosition is in area, in c's coordinates: c is showing, area holds the point, and
+    // c's window is the one under it (the window's own Component::contains asks the OS).
+    static bool isPointerWithin (juce::Component& c, const juce::Path& area, juce::Point<float> screenPosition);
 
     // The pointer as the OS has it now, unless a ScopedPointer stands in for it.
     static juce::Point<float> pointer();

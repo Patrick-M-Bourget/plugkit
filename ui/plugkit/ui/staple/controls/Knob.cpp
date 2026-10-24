@@ -1,6 +1,6 @@
 // Copied from eq1's plugin/staple/controls/Knob.cpp (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and its
 // Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin, as
-// TipWatchdog::isPointerOver checks it; listed in eq1#231.
+// TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout); listed in eq1#231.
 
 #include "Knob.h"
 
@@ -26,6 +26,26 @@ const juce::DropShadow& shadowFor (float diameter) { return isSmall (diameter) ?
 float angleOf (double proportion)
 {
     return juce::degreesToRadians (knobs::sweepDegrees * (static_cast<float> (proportion) - 0.5f));
+}
+
+// The way the pointer takes from a knob's face to its Readout (card), both in one component's coordinates: from the
+// face's width across its centre to the card's near edge, as wide there as the card. Every straight path from the
+// face's half nearer the card onto the card stays on it. Beside the face, level with its centre or further from the
+// card, is off it. Empty when the card's near edge is on the face's far side of its centre.
+juce::Path wayToReadout (juce::Rectangle<float> face, juce::Rectangle<float> card)
+{
+    const float centreY = face.getCentreY();
+    const bool below = card.getCentreY() > centreY;
+    const float nearY = below ? card.getY() : card.getBottom();
+    juce::Path way;
+    if (below ? nearY <= centreY : nearY >= centreY)
+        return way;
+    way.startNewSubPath (face.getX(), centreY);
+    way.lineTo (face.getRight(), centreY);
+    way.lineTo (card.getRight(), nearY);
+    way.lineTo (card.getX(), nearY);
+    way.closeSubPath();
+    return way;
 }
 } // namespace
 
@@ -290,11 +310,27 @@ void Knob::hideTooltipUnlessHovered (juce::Point<int> screenPosition)
         return;
     // Over the face (or the ring), not the shadow margin round it: JUCE sends the exit as the pointer leaves the face,
     // usually still inside the knob's bounds, and the knob hears nothing more. A hidden knob or parent sends one inside
-    // them too.
+    // them too. On the way to the Readout, in the margin or over the label, the pointer is crossing to the Readout.
     const auto pointer = screenPosition.toFloat();
-    if ((isEnabled() && TipWatchdog::isPointerOver (*this, pointer)) || TipWatchdog::isPointerOver (*tooltip, pointer))
+    if ((isEnabled() && (TipWatchdog::isPointerOver (*this, pointer) || isOnWayToReadout (pointer)))
+        || TipWatchdog::isPointerOver (*tooltip, pointer))
         return;
     hideTooltip();
+}
+
+juce::Rectangle<float> Knob::faceArea() const
+{
+    const float r = getFaceRadius();
+    return juce::Rectangle<float> (2.0f * r, 2.0f * r).withCentre (getFaceCentre());
+}
+
+bool Knob::isOnWayToReadout (juce::Point<float> screenPosition)
+{
+    auto* layer = tooltip != nullptr ? tooltip->getParentComponent() : nullptr;
+    if (layer == nullptr || ! tooltip->isVisible())
+        return false;
+    const auto way = wayToReadout (layer->getLocalArea (this, faceArea()), tooltip->getBounds().toFloat());
+    return TipWatchdog::isPointerWithin (*layer, way, screenPosition);
 }
 
 void Knob::hideTooltip()
