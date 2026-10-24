@@ -23,8 +23,9 @@ class Knob;
 // takes typing (RingHandler::ringAcceptsTypedText), and the double-click does nothing if it doesn't. The Knob owns it
 // and shows and hides it. It stays while the pointer crosses from the knob's face onto it,
 // through the knob's margin or over its label (Knob::isOnWayToReadout). While it shows, its TipWatchdog hides it once
-// the OS has the pointer off the knob, the Readout and the way between them, unless the knob is being dragged or a value
-// typed, as the knob does when the pointer leaves it.
+// the OS has the pointer off the knob, the Readout and the way between them, or resting on that way
+// (Knob::restOnWayChecks), unless the knob is being dragged or a value typed, as the knob does when the pointer leaves
+// it.
 class KnobTooltip final : public juce::Component
 {
 public:

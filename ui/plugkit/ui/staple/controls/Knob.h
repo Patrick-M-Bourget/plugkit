@@ -83,6 +83,10 @@ public:
     // reader reads it (KeyboardSlider::describe), else its text; the ring's while its lane is hovered or
     // dragged, and after, until the pointer is next on the face or ring (on the way to the Readout, its content stays).
     juce::String tooltipTitle() const;
+    // How long the Readout stays while the pointer rests on the way to it, off the face, ring and Readout: its
+    // watchdog's checks (TipWatchdog::periodMs, so 480 ms) after the one that finds the pointer there. The way keeps
+    // the Readout while the pointer crosses it, not while it rests there.
+    static constexpr int restOnWayChecks = 6;
     bool isTooltipOnRing() const { return ring != nullptr && (readoutOnRing || ringDragging); }
     juce::String tooltipValue();
     bool isTooltipShown() const;
@@ -116,8 +120,10 @@ private:
     // way from there to the Readout, or on the Readout.
     void hideTooltipUnlessHovered (juce::Point<int> screenPosition);
     // The Readout's watchdog's check, with the pointer as the OS has it: hides the Readout as the pointer leaving would,
-    // unless the knob is being dragged.
+    // or once the pointer has rested on the way to it (restOnWayChecks), unless the knob is being dragged.
     void watchTooltip (juce::Point<float> pointer);
+    // Whether the pointer at screenPosition is over the face (or ring) of the knob, enabled, or over the Readout.
+    bool isOverKnobOrReadout (juce::Point<float> screenPosition);
     void hideTooltip();
     // Whether e is on the ring as JUCE found the knob under it: at the whole pixel nearest its position (hitTest), so
     // the face and ring it reaches agree with the hit test at fractional positions (the UI Scale's).
@@ -144,6 +150,11 @@ private:
     bool readoutOnRing = false;
 
     bool ringDragging = false;
+
+    // Where the watchdog last found the pointer on the way to the Readout, and only there, and its checks since then
+    // with the pointer still at that whole pixel.
+    std::optional<juce::Point<int>> wayRestAt;
+    int wayRestChecks = 0;
 
     std::unique_ptr<KnobTooltip> tooltip;
     juce::Component::SafePointer<juce::Component> label;

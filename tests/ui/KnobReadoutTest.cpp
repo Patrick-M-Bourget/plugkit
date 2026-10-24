@@ -133,6 +133,31 @@ juce::Point<float> marginBeside (staple::Knob& knob)
     return at;
 }
 
+// A rest of the pointer from now: the time it has lasted, and the watchdog's periods it has lasted, counted by a timer
+// of its own at TipWatchdog::periodMs. A loaded machine's timer thread runs that timer late just as it runs the
+// watchdog's, so it counts the watchdog's checks where a wall clock can't.
+struct Rest final : private juce::Timer
+{
+    Rest() { startTimer (staple::TipWatchdog::periodMs); }
+    ~Rest() override { stopTimer(); }
+
+    juce::uint32 elapsedMs() const { return juce::Time::getMillisecondCounter() - startedAt; }
+    int periods = 0;
+
+private:
+    void timerCallback() override { ++periods; }
+    const juce::uint32 startedAt = juce::Time::getMillisecondCounter();
+};
+
+// Lets the timers run, the pointer sent again where it is each round, until done() is true (harness::settleUntil).
+bool restUntil (harness::HostWindow& window, const std::function<bool()>& done)
+{
+    return harness::settleUntil ([&] {
+        window.pointerAgain();
+        return done();
+    });
+}
+
 // A point right of knob, outside its bounds.
 juce::Point<float> rightOf (staple::Knob& knob) { return { static_cast<float> (knob.getWidth()) + 10.0f, knob.getFaceCentre().y }; }
 
@@ -433,7 +458,7 @@ TEST_CASE ("A Knob Readout stays on every straight move from its knob's face or 
     }
 }
 
-TEST_CASE ("A Knob Readout stays while the pointer rests on the way from its knob's face to a corner of it")
+TEST_CASE ("A Knob Readout stays while the pointer moves on the way from its knob's face to a corner of it, and hides once it rests there")
 {
     Hosted e;
     const auto kind = GENERATE (Kind::small, Kind::readoutAbove, Kind::ringed);
@@ -451,15 +476,25 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on the way from its kno
     e.window.pointerAtWindow (from);
     REQUIRE (knob.isTooltipShown());
 
-    // Most of the way, then a rest there, off the knob and the Readout, which the watchdog checks.
-    const auto resting = from + (corner - from) * 0.8f;
-    walk (e.window, from, resting, [] {});
+    // Most of the way, slowly, through a watchdog check at each step: longer than a rest the Readout keeps.
+    const harness::VisibilityChanges changes (readout);
+    int steps = 0;
+    walk (e.window, from, from + (corner - from) * 0.75f, [&] {
+        ++steps;
+        harness::settle (staple::TipWatchdog::periodMs);
+        e.window.pointerAgain();
+    });
+    REQUIRE (steps > staple::Knob::restOnWayChecks);
+    // One step more, and a rest there, off the knob and the Readout.
+    e.window.pointerAtWindow (from + (corner - from) * 0.8f);
     REQUIRE (Hosted::underPointer() != &knob);
     REQUIRE (Hosted::underPointer() != &readout);
-    const harness::VisibilityChanges changes (readout);
-    harness::settle (3 * staple::TipWatchdog::periodMs);
     CHECK (changes.hides == 0);
     CHECK (knob.isTooltipShown());
+
+    const Rest rest;
+    CHECK (restUntil (e.window, [&] { return ! knob.isTooltipShown(); }));
+    CHECK (rest.elapsedMs() >= staple::Knob::restOnWayChecks * staple::TipWatchdog::periodMs);
 }
 
 namespace
@@ -526,6 +561,34 @@ TEST_CASE ("A Knob Readout wider than its knob's face hides on its watchdog's ne
     REQUIRE (Hosted::underPointer() != &knob);
     e.window.pointerAtWindow (onEdge.translated (side * 20.0f, 0.0f));
     CHECK (harness::settleUntil ([&] { return ! knob.isTooltipShown(); }));
+}
+
+// The strip beside a Small face, level with its centre, is on the way to its Readout (the Readout is the wider), off
+// the face, ring and Readout: a pointer resting there is not crossing to the Readout.
+TEST_CASE ("A Knob Readout hides once the pointer rests in the strip beside its knob's face, within the rest it keeps plus one watchdog period")
+{
+    Hosted e;
+    auto& knob = e.small;
+    e.hover (knob);
+    const auto side = GENERATE (-1.0f, 1.0f);
+    INFO ((side < 0 ? "Left" : "Right"));
+    const auto onEdge = justInside (e, knob, Kind::small, side, 0.0f);
+    e.window.pointerAtWindow (onEdge);
+    REQUIRE (knob.isTooltipShown());
+
+    // 2 px off the face, sideways, into the strip.
+    e.window.pointerAtWindow (onEdge.translated (side * 3.0f, 0.0f));
+    REQUIRE (Hosted::underPointer() != &knob);
+    REQUIRE (Hosted::underPointer() != knob.getKnobTooltip());
+    REQUIRE (knob.isTooltipShown());
+
+    const Rest rest;
+    CHECK (restUntil (e.window, [&] { return ! knob.isTooltipShown(); }));
+    // The watchdog's first check, within one period of the rest's start, finds the pointer there; the restOnWayChecks
+    // after it span the rest the Readout keeps, and the last of them hides it: no sooner than that rest, and within it
+    // plus one period.
+    CHECK (rest.elapsedMs() >= staple::Knob::restOnWayChecks * staple::TipWatchdog::periodMs);
+    CHECK (rest.periods <= staple::Knob::restOnWayChecks + 1);
 }
 
 namespace
