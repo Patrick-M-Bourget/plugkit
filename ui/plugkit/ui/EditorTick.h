@@ -6,6 +6,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <atomic>
+#include <optional>
 
 namespace plugkit::ui
 {
@@ -44,6 +45,11 @@ public:
     void wake();
     // Puts client on this tick: what a Host does for itself; a Client under a Host joins by itself.
     void add (Client& client);
+    // For tests only: every tick hands its Clients exactly seconds, however much real time passed, so a
+    // tick-driven value (a meter's fall, a fade) checked against the audio played doesn't depend on the
+    // machine's speed. std::nullopt (the default, and what shipping code leaves it at) hands over the
+    // real time since the last tick. The editor harness sets it (OpenEditor::fixTickSeconds).
+    void fixTickSeconds (std::optional<double> seconds);
 
 private:
     void timerCallback() override;
@@ -58,6 +64,7 @@ private:
     std::atomic<bool> changedOffThread { false }; // what another thread's change sets; the tick clears it
     static_assert (std::atomic<bool>::is_always_lock_free);
     double lastTickMs = 0.0; // 0 before the first
+    std::optional<double> fixedSeconds; // what every tick hands over instead of real time, set by a test
 };
 
 // What the tick drives: a component that reads the processor each tick and repaints only on a
@@ -70,7 +77,8 @@ public:
     virtual ~Client();
 
     // Each tick, with the seconds since the one before: 1/60 s on the first, and at most 0.25 s after
-    // a stall, so a meter's fall doesn't jump.
+    // a stall, so a meter's fall doesn't jump. In a test that fixes the tick's duration
+    // (EditorTick::fixTickSeconds), that duration instead.
     virtual void tick (double seconds) = 0;
     // True while it animates or meters, which keeps the tick at activeHz.
     virtual bool isActive() const { return false; }
