@@ -284,12 +284,14 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
             break;
         case Doing::types:
             knob.getKnobTooltip()->startEditing();
-            e.window.pointerUnseen (knob, rightOf (knob));
+            e.window.pointerAt (knob, rightOf (knob));
             break;
     }
-    // Through the watchdog's checks, which fire before the harness's timer as they fall due sooner.
+    // Through the watchdog's checks, which fire before the harness's timer as they fall due sooner, and the pointer
+    // again where the test left it, which JUCE's Desktop timer may have moved to the machine's real mouse meanwhile.
     const harness::VisibilityChanges changes (*knob.getKnobTooltip());
     harness::settle (4 * staple::TipWatchdog::periodMs);
+    e.window.pointerAgain();
     CHECK (changes.hides == 0);
     CHECK (knob.isTooltipShown());
 }
@@ -870,8 +872,10 @@ TEST_CASE ("One Knob Readout shows at a time: a neighbour's hides it on the way 
     CHECK (both == 0);
     CHECK (a.isTooltipShown() == typing);
 
-    // Through the watchdogs' checks.
+    // Through the watchdogs' checks, and the pointer again on b, which JUCE's Desktop timer may have moved to the
+    // machine's real mouse meanwhile.
     harness::settle (3 * staple::TipWatchdog::periodMs);
+    e.window.pointerAgain();
     CHECK (b.isTooltipShown());
     CHECK (a.isTooltipShown() == typing);
     if (typing)
