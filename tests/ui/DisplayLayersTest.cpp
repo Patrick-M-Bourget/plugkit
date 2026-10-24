@@ -1,7 +1,7 @@
 // Copied from eq1's tests/plugin/DisplayLayersTest.cpp (eq1 at dbb1127), against plugkit::ui::display: its grid and
 // edge-fade cases, with eq1's narrow display width and fade distances passed in, which plugkit's layers take as
-// arguments, a case on paintGrid's overload for any GridLines, and one on spectrumYAt. Its Band curve cases, on eq1's
-// CurvesLayer, stay in eq1.
+// arguments, a case on paintGrid's overload for any GridLines, one on spectrumYAt and one on paintAnalyzer's optional
+// Sidechain. Its Band curve cases, on eq1's CurvesLayer, stay in eq1.
 
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/display/AnalyzerLayer.h"
@@ -43,6 +43,25 @@ std::vector<plugkit::ui::display::Label> withColour (const std::vector<plugkit::
     std::vector<plugkit::ui::display::Label> out;
     std::copy_if (labels.begin(), labels.end(), std::back_inserter (out), [&] (const auto& l) { return l.colour == colour; });
     return out;
+}
+
+// A spectrum of a full-scale sine on an FFT bin at 48 kHz, so it reads its full level over its Frequency.
+struct SineSpectrum
+{
+    plugkit::ui::AnalyzerSpectrum spectrum;
+    double frequency = 0.0;
+};
+
+void fillWithSine (SineSpectrum& sine)
+{
+    const auto size = plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high);
+    sine.spectrum.prepare (48000.0, plugkit::ui::AnalyzerResolution::high);
+    sine.frequency = 128.0 * 48000.0 / size;
+    std::vector<float> block (static_cast<size_t> (size));
+    for (size_t i = 0; i < block.size(); ++i)
+        block[i] = static_cast<float> (std::sin (2.0 * std::numbers::pi * sine.frequency * static_cast<double> (i) / 48000.0));
+    sine.spectrum.push (block.data(), static_cast<int> (block.size()));
+    sine.spectrum.update (10.0, plugkit::ui::AnalyzerSpeed::veryFast);
 }
 } // namespace
 
@@ -285,16 +304,59 @@ TEST_CASE ("A spectrum is drawn on the Analyzer's scale: 0 dB at the top, its ra
     CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, 500.0f), WithinAbs (612.0, 1.0e-3));
 
     // A full-scale sine, on an FFT bin so it reads its full level: at the top over its Frequency.
-    const double frequency = 128.0 * 48000.0 / plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high);
-    std::vector<float> block (static_cast<size_t> (plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high)));
-    for (size_t i = 0; i < block.size(); ++i)
-        block[i] = static_cast<float> (std::sin (2.0 * std::numbers::pi * frequency * static_cast<double> (i) / 48000.0));
-    spectrum.push (block.data(), static_cast<int> (block.size()));
-    spectrum.update (10.0, plugkit::ui::AnalyzerSpeed::veryFast);
+    SineSpectrum sine;
+    fillWithSine (sine);
+    const double frequency = sine.frequency;
     const float x = geometry.xOf (frequency);
-    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, x), WithinAbs (0.0, 0.5));
+    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, sine.spectrum, x), WithinAbs (0.0, 0.5));
 
     // Tilted to 30 dB down over its Frequency, below 1 kHz: half-way down.
     settings.tiltDbPerOctave = -30.0 / std::log2 (frequency / 1000.0);
-    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, x), WithinAbs (306.0, 0.5));
+    CHECK_THAT (plugkit::ui::display::spectrumYAt (geometry, settings, sine.spectrum, x), WithinAbs (306.0, 0.5));
+}
+
+TEST_CASE ("The Sidechain spectrum is optional: shown, it is drawn when given and nothing is drawn for it when not")
+{
+    namespace colour = staple::tokens::colour;
+    const DisplayGeometry geometry { .width = 400, .height = 200 };
+    plugkit::ui::AnalyzerSettings settings;
+    settings.showPreEq = false;
+    settings.showPostEq = false;
+    settings.showSidechain = true;
+    settings.tiltDbPerOctave = 0.0;
+    plugkit::ui::AnalyzerSpectrum silent;
+    silent.prepare (48000.0, plugkit::ui::AnalyzerResolution::high);
+    SineSpectrum sidechain;
+    fillWithSine (sidechain);
+    const auto drawnPixels = [] (const juce::Image& image) {
+        int drawn = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                drawn += image.getPixelAt (x, y).getAlpha() > 0 ? 1 : 0;
+        return drawn;
+    };
+
+    SECTION ("given, as eq1 passes it: drawn in the Sidechain's tint, high over the sine")
+    {
+        const auto image = harness::paintImage (400, 200, [&] (juce::Graphics& g) {
+            plugkit::ui::display::paintAnalyzer (g, geometry, { .settings = settings, .preEq = silent, .postEq = silent, .sidechain = sidechain.spectrum });
+        });
+        // The topmost pixel drawn over the sine.
+        const int x = juce::roundToInt (geometry.xOf (sidechain.frequency));
+        int y = 0;
+        while (y < image.getHeight() && image.getPixelAt (x, y).getAlpha() == 0)
+            ++y;
+        REQUIRE (y < image.getHeight() / 2); // far above the silent bottom, near 0 dB
+        const auto top = image.getPixelAt (x, y);
+        CHECK (std::abs (top.getRed() - colour::anScLine.getRed()) <= 8);
+        CHECK (std::abs (top.getGreen() - colour::anScLine.getGreen()) <= 8);
+        CHECK (std::abs (top.getBlue() - colour::anScLine.getBlue()) <= 8);
+    }
+    SECTION ("not given: nothing drawn")
+    {
+        const auto image = harness::paintImage (400, 200, [&] (juce::Graphics& g) {
+            plugkit::ui::display::paintAnalyzer (g, geometry, { .settings = settings, .preEq = silent, .postEq = silent });
+        });
+        CHECK (drawnPixels (image) == 0);
+    }
 }
