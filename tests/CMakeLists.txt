@@ -43,6 +43,7 @@ add_executable(plugkit_plugin_tests
     ui/EditorTickTest.cpp
     ui/HeaderTest.cpp
     ui/KeyboardControlTest.cpp
+    ui/KnobReadoutTest.cpp
     ui/OutputMeterTest.cpp
     ui/OutputReadoutTest.cpp
     ui/PopoverSliderTest.cpp
