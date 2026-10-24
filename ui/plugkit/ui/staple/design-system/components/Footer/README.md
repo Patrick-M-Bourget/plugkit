@@ -3,8 +3,8 @@
 The bottom bar shared by every plugin, holding the global settings.
 
 It is 36–40 px tall.
-- **Left:** **Global Bypass** (the power button), then **Processing** (the Processing Mode label in `text-2` beside its value chip), then the plugin's own chips: eq1's **Analyzer ▾**; comp1's **Oversampling** and, in the Expanded View, **Detection** (with a Stereo Placement dot).
-- **Right:** the plugin's output controls. eq1 has the Gain Scale (100 %) and the **Output readout**, which opens the Output popover. comp1 has a Limiter chip showing its Ceiling, and the Output readout.
+- **Left:** **Global Bypass** (the power button), then the plugin's chips. eq1 has **Processing** (the Processing Mode label in `text-2` beside its value chip) and **Analyzer ▾**. comp1 has the **Style**, **Processing Mode** and **Oversampling** chips, each as wide as its longest choice; Oversampling is disabled outside the High Quality Processing Mode.
+- **Right:** the plugin's output controls. eq1 has the Gain Scale (100 %) and the **Output readout**, which opens the Output popover. comp1 has the **Output readout**, whose popover holds Output Gain, Auto Gain, the Limiter and its Ceiling, then the **UI Scale** menu.
 - **Far right:** the window-size or view switch: `Icon::expand` to grow the window or open the larger view, `Icon::collapse` to go back.
 
 The chips are text buttons on `fill-1`, 28 px tall. A chip that opens a popover shows ▾ and opens the popover above, `space-popover-above` away.
