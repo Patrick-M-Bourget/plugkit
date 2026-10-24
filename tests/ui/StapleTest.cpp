@@ -7,6 +7,7 @@
 #include "plugkit/ui/staple/Icons.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
 #include "plugkit/ui/staple/Painting.h"
+#include "plugkit/ui/staple/TipWatchdog.h"
 #include "plugkit/ui/staple/Tokens.h"
 #include "plugkit/ui/staple/controls/Tween.h"
 
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <vector>
 
 using Catch::Matchers::WithinAbs;
 
@@ -302,4 +304,57 @@ TEST_CASE ("A Tween counts as easing from towards() until it lands, and not afte
         CHECK (staple::Tween::numberEasing() == 1);
     }
     CHECK (staple::Tween::numberEasing() == 0);
+}
+
+TEST_CASE ("Stand-ins for the OS's pointer nest: the innermost answers, and each going hands back to the one outside it")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    using Source = staple::TipWatchdog::ScopedPointerSource;
+    const juce::Point<float> outerAt { -1000.0f, -1000.0f }, innerAt { -2000.0f, -2000.0f };
+    {
+        const Source outer ([outerAt] { return outerAt; });
+        CHECK (staple::TipWatchdog::pointer() == outerAt);
+        {
+            const Source inner ([innerAt] { return innerAt; });
+            CHECK (staple::TipWatchdog::pointer() == innerAt);
+        }
+        CHECK (staple::TipWatchdog::pointer() == outerAt);
+    }
+    // The OS's pointer again, which is on a screen.
+    CHECK (staple::TipWatchdog::pointer() != outerAt);
+}
+
+// A Tween's frames run on a repeating timer, which a loaded machine's stalled timer thread fires once for all the frames
+// it missed: the bound is in frames, not wall time. (The Tooltip's fade, over TooltipWindow::fadeOutMs, is one.)
+TEST_CASE ("A Tween lands on its target on its first frame after its duration, however late that frame runs")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    const bool stalled = GENERATE (false, true);
+    INFO ((stalled ? "its frames held up past its duration" : "its frames on time"));
+    constexpr int durationMs = 100;
+    staple::Tween tween (durationMs, 0.0f);
+    struct Frame
+    {
+        double at;
+        float value;
+        bool easing;
+    };
+    std::vector<Frame> frames;
+    tween.apply = [&frames] (float value) {
+        frames.push_back ({ juce::Time::getMillisecondCounterHiRes(), value, staple::Tween::numberEasing() > 0 });
+    };
+    const auto began = juce::Time::getMillisecondCounterHiRes();
+    tween.towards (1.0f);
+    if (stalled)
+        juce::Thread::sleep (2 * durationMs); // the message thread busy: no frame runs meanwhile
+
+    REQUIRE (harness::settleUntil ([] { return staple::Tween::numberEasing() == 0; }));
+    REQUIRE_FALSE (frames.empty());
+    CHECK (juce::exactlyEqual (frames.back().value, 1.0f));
+    CHECK_FALSE (frames.back().easing);
+    CHECK (frames.back().at - began >= durationMs);
+    for (size_t i = 0; i + 1 < frames.size(); ++i)
+        CHECK (frames[i].easing);
+    if (stalled)
+        CHECK (frames.size() == 1);
 }

@@ -1,5 +1,5 @@
 // Copied from eq1's plugin/display/AnalyzerLayer.cpp (eq1 at dbb1127), in namespace plugkit::ui::display, spectrumLine
-// made public, and the Sidechain drawn only when the frame has one.
+// made public, and the Sidechain drawn only when the frame has one; listed in eq1#231.
 
 #include "AnalyzerLayer.h"
 
