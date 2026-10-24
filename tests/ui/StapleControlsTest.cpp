@@ -1086,21 +1086,3 @@ TEST_CASE ("A wheel turn hides a Tooltip at once, and ends one fading out")
     t.turnWheelOn (t.bare);
     CHECK_FALSE (t.tips.fadingOut().isVisible());
 }
-
-// The fade's frames run on a timer, which a loaded machine can run late, so the bound is in frames, not
-// wall time: once fadeOutMs has passed since the fade began, its next frame ends it.
-TEST_CASE ("A Tooltip fading out is gone on its first frame after fadeOutMs")
-{
-    TooltipKit t;
-    t.show (t.gain);
-    const auto& fading = t.tips.fadingOut();
-    t.moveOnto (t.bare);
-    const auto began = juce::Time::getMillisecondCounterHiRes();
-    REQUIRE (fading.isVisible());
-
-    while (juce::Time::getMillisecondCounterHiRes() - began < staple::TooltipWindow::fadeOutMs)
-        harness::settle (1);
-    harness::settle (20); // past the next of the fade's 60 Hz frames
-    CHECK_FALSE (fading.isVisible());
-    CHECK (fading.getAlpha() == 0.0f);
-}

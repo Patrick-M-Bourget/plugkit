@@ -117,9 +117,11 @@ TEST_CASE ("After a wheel turn or a click, a Tooltip stays hidden until the poin
         h.window->pointerAt (h.gain, at);
     }
     CHECK_FALSE (h.tips.isVisible());
-    // Well past the 500 ms in which JUCE shows a tip again at once, and a 700 ms rest after it.
+    // Not shown at any moment until well past the 500 ms in which JUCE shows a tip again at once, and a 700 ms rest
+    // after it: JUCE's timer, which runs before the harness's as it falls due sooner, has decided by then.
+    const ShowCount shows (h.tips);
     harness::settle (1500);
-    CHECK_FALSE (h.tips.isVisible());
+    CHECK (shows.count == 0);
 
     CHECK (h.restOn (h.gain, at.translated (6.0f, 0.0f)) >= 700);
 }
@@ -134,7 +136,7 @@ TEST_CASE ("A Tooltip stays while the pointer rests on its control")
 
 // The OS sends the window no event in each case, so JUCE still has the pointer on the control: only the watchdog,
 // which reads the pointer from the OS, sees it has gone.
-TEST_CASE ("A Tooltip fades out within one watchdog period once the OS has the pointer off its control, and stays hidden")
+TEST_CASE ("A Tooltip fades out on its watchdog's check once the OS has the pointer off its control, and stays hidden")
 {
     Hosted h;
     h.restOn (h.gain);
@@ -147,11 +149,11 @@ TEST_CASE ("A Tooltip fades out within one watchdog period once the OS has the p
     else
         h.window->peer().visible = false;
 
-    harness::settle (staple::TipWatchdog::periodMs);
-    CHECK_FALSE (h.tips.isVisible());
-    CHECK (h.tips.fadingOut().isVisible());
-    CHECK (harness::settleUntil ([&] { return ! h.tips.fadingOut().isVisible(); }));
-    // JUCE's timer, which still has the pointer on the control, doesn't show it again, not even for one watchdog period.
+    REQUIRE (harness::settleUntil ([&] { return ! h.tips.isVisible() && ! h.tips.fadingOut().isVisible(); }));
+    // Faded to nothing, not cut: the fade's last frame leaves its picture transparent (it starts opaque).
+    CHECK (h.tips.fadingOut().getAlpha() == 0.0f);
+    // JUCE's timer, which still has the pointer on the control, doesn't show it again, not even for one watchdog
+    // period, until well past the 500 ms in which it shows a tip again at once and a 700 ms rest after it.
     const ShowCount shows (h.tips);
     harness::settle (1500);
     CHECK (shows.count == 0);

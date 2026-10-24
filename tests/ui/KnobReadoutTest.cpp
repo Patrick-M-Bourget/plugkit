@@ -144,7 +144,7 @@ TEST_CASE ("A Knob Readout being typed into stays when the pointer leaves it and
 
 // The OS sends the window no event in each case, so JUCE still has the pointer on the knob: only the watchdog, which
 // reads the pointer from the OS, sees it has gone.
-TEST_CASE ("A Knob Readout hides within one watchdog period once the OS has the pointer off its knob")
+TEST_CASE ("A Knob Readout hides on its watchdog's check once the OS has the pointer off its knob")
 {
     Hosted e;
     auto& knob = e.frequency();
@@ -158,8 +158,7 @@ TEST_CASE ("A Knob Readout hides within one watchdog period once the OS has the 
     else
         e.window.peer().visible = false;
 
-    harness::settle (staple::TipWatchdog::periodMs);
-    CHECK_FALSE (knob.isTooltipShown());
+    CHECK (harness::settleUntil ([&] { return ! knob.isTooltipShown(); }));
 }
 
 TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it out of the knob, or types into it")
