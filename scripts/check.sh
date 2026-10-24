@@ -19,7 +19,8 @@
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
 #   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
-#   scripts/check.sh focus <re> build the tests and run those whose names match the regex; none matching fails
+#   scripts/check.sh focus <re> build the test targets (TEST_TARGETS; configuring BUILD_DIR first if it isn't) and run
+#                               the tests whose names match the regex; none matching fails
 #   scripts/check.sh screens <dir>  build the tests and render every hidden [.screens] test into <dir> as PNGs, to
 #                               compare with the rendered design prototype
 #   scripts/check.sh cpu        the Engine's CPU load in every CPU scene against its budget (the plugin's performance
@@ -425,11 +426,22 @@ run_tests() {
 }
 
 # A test filter that matches nothing is an error here, not a silent pass. Its output goes to a log, as
-# the hooks' does: the summary on success; the compiler's errors, or the failing tests' output, on failure.
+# the hooks' does: the summary on success; CMake's or the compiler's errors, or the failing tests' output, on failure.
+# It builds TEST_TARGETS, configuring BUILD_DIR first, as build does, when nothing has yet.
 focus() {
+    # Here, not only in configure, whose messages go to the log.
+    need VAR_PREFIX
     step "Tests matching $1"
-    local log=$BUILD_DIR/focus.log
-    if ! cmake --build "$BUILD_DIR" --config Release --parallel --target "${PLUGIN_NAME}_engine_tests" "${PLUGIN_NAME}_plugin_tests" > "$log" 2>&1; then
+    local log=$BUILD_DIR/focus.log targets
+    read -r -a targets <<< "${TEST_TARGETS:-${PLUGIN_NAME}_engine_tests ${PLUGIN_NAME}_plugin_tests}"
+    mkdir -p "$BUILD_DIR"
+    : > "$log"
+    if [ ! -f "$BUILD_DIR/CMakeCache.txt" ] && ! configure . "$BUILD_DIR" >> "$log" 2>&1; then
+        grep -E 'Error|error' "$log" >&2
+        echo "Configure failed; log in $log" >&2
+        return 1
+    fi
+    if ! cmake --build "$BUILD_DIR" --config Release --parallel --target "${targets[@]}" >> "$log" 2>&1; then
         grep -E 'error|FAILED:' "$log" >&2
         echo "Build failed; log in $log" >&2
         return 1
@@ -918,5 +930,5 @@ case "${1:-all}" in
     hooks) hooks ;;
     # A busy machine skips the CPU budget and the paint time (exit 3) but not the stages after them.
     all) docs; colours; hooks; build; run_tests; cpu || [ $? -eq 3 ]; paint || [ $? -eq 3 ]; tsan; validate ;;
-    *) sed -n '2,49p' "$0" >&2; exit 2 ;;
+    *) sed -n '2,50p' "$0" >&2; exit 2 ;;
 esac

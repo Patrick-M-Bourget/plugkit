@@ -126,6 +126,48 @@ expect fail "== Engine and Plugin Shell tests" "test is headed as a plugin's CI 
 repo=$(plugin "${base[@]}" 'TEST_STEP="demo-dsp tests"')
 expect fail "== demo-dsp tests" "TEST_STEP heads the test stage" "$repo" test
 
+# focus, in a plugin whose CMake project has no build folder yet: a stand-in for each test target, recording that it
+# was built, and two tests, one failing, so that running a test the regex doesn't match fails the stage.
+focus_project() {
+    local repo=$1 target
+    shift
+    {
+        printf 'cmake_minimum_required(VERSION 3.22)\nproject(demo NONE)\nenable_testing()\n'
+        for target in "$@"; do
+            printf 'add_custom_target(%s COMMAND ${CMAKE_COMMAND} -E touch built-%s)\n' "$target" "$target"
+        done
+        printf 'add_test(NAME Tooltip.shows COMMAND ${CMAKE_COMMAND} -E echo ok)\n'
+        printf 'add_test(NAME Other.fails COMMAND ${CMAKE_COMMAND} -E false)\n'
+    } > "$repo/CMakeLists.txt"
+}
+
+# expect_built <what> <repo> <target...>: each target was built in the repo's build folder.
+expect_built() {
+    local what=$1 repo=$2 target
+    shift 2
+    for target in "$@"; do
+        [ -f "$repo/build/built-$target" ] || { echo "FAIL: $what: $target wasn't built" >&2; failures=$((failures + 1)); }
+    done
+}
+
+repo=$(plugin "${base[@]}")
+focus_project "$repo" demo_engine_tests demo_plugin_tests
+FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
+    "focus configures a missing build folder, then builds the default test targets and runs only the matching tests" \
+    "$repo" focus Tooltip
+expect_built "focus builds <name>_engine_tests and <name>_plugin_tests by default" "$repo" demo_engine_tests demo_plugin_tests
+
+repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_plugin_tests"')
+focus_project "$repo" demo_dsp_tests demo_plugin_tests
+FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" "focus builds the TEST_TARGETS the config names" \
+    "$repo" focus Tooltip
+expect_built "focus builds every TEST_TARGETS target" "$repo" demo_dsp_tests demo_plugin_tests
+
+repo=$(plugin "${base[@]}")
+focus_project "$repo" demo_engine_tests demo_plugin_tests
+FETCHCONTENT_BASE_DIR=$repo/.deps expect fail "No tests were found" "focus with a regex matching no test fails" \
+    "$repo" focus Nothing
+
 repo=$(plugin "${base[@]}")
 expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says which" "$repo" validate
 
