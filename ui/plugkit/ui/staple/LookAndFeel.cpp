@@ -327,8 +327,8 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, 
 
     // Its shadow undimmed while disabled, unlike the Knob, which dims all of itself. Its rim and arc grow above the Gain
     // knob's size as the Knob's do.
-    const float strokeScale = knobStrokeScale (diameter);
-    drawKnobFace (g, face, tokens::shadow::knob, strokeScale * (diameter <= tokens::knob::small ? tokens::knob::rimSmall : tokens::knob::rim),
+    const auto strokes = knobStrokes (diameter);
+    drawKnobFace (g, face, tokens::shadow::knob, strokes.rim,
                   slider.findColour (juce::Slider::rotarySliderOutlineColourId).withMultipliedAlpha (alpha), alpha);
 
     // Only the active arc, no track; a knob whose range is centred on 0 starts from 12 o'clock.
@@ -341,8 +341,7 @@ void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, 
     juce::Path arc;
     arc.addCentredArc (face.getCentreX(), face.getCentreY(), radius, radius, 0.0f, from, to, true);
     g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId).withMultipliedAlpha (alpha));
-    g.strokePath (arc, juce::PathStrokeType (strokeScale * (diameter < 40.0f ? tokens::knob::arcSmall : tokens::knob::arc),
-                                             juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath (arc, juce::PathStrokeType (strokes.arc, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 
 void LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height, float position, float minPosition,

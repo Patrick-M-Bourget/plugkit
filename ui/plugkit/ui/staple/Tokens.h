@@ -128,7 +128,8 @@ namespace knob
     // small sizes, approved for that view alone.
     constexpr float hero = 120.0f;
     constexpr float rim = 2.0f, rimSmall = 1.5f;           // rimSmall at 30 px and below
-    constexpr float arc = 3.0f, arcSmall = 2.0f;           // arcSmall below 40 px
+    constexpr float arc = 3.0f, arcSmall = 2.0f;           // arcSmall below arcSmallBelow
+    constexpr float arcSmallBelow = 40.0f;
     constexpr float arcInset = 4.5f, arcInsetProportion = 0.1f; // the arc's radius is r - max (arcInset, d x arcInsetProportion)
     constexpr float sweepDegrees = 270.0f;
     constexpr float arcGlow = 1.5f, arcGlowAlpha = 0.3f;   // a wider translucent stroke under the arc

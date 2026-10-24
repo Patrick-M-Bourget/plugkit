@@ -45,7 +45,8 @@ void drawKnobFace (juce::Graphics& g, juce::Rectangle<float> face, const juce::D
                    float opacity = 1.0f);
 
 // A knob's stroke widths at a diameter, in px: its rim, its value arc, and the arc's glow either side of it. They are
-// tokens::knob's rim, arc and arcGlow (rimSmall and arcSmall at 30 px and below), times knobStrokeScale.
+// tokens::knob's rim, arc and arcGlow (rimSmall at tokens::knob::small and below, arcSmall below
+// tokens::knob::arcSmallBelow), times knobStrokeScale.
 struct KnobStrokes
 {
     float rim, arc, arcGlow;

@@ -198,7 +198,7 @@ TEST_CASE ("The hero knob is 120 px")
     CHECK (juce::exactlyEqual (staple::tokens::knob::hero, 120.0f));
 }
 
-TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 66 px, and grow with the diameter above it")
+TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 66 px, and grow with the diameter above it; the arc is thin below 40 px")
 {
     struct Row
     {
@@ -206,6 +206,7 @@ TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 6
     };
     const Row rows[] = {
         { 30.0f, 1.5f, 2.0f, 1.5f },
+        { 36.0f, 2.0f, 2.0f, 1.5f }, // above the small rim's 30 px, below the full arc's 40 px
         { 50.0f, 2.0f, 3.0f, 1.5f },
         { 66.0f, 2.0f, 3.0f, 1.5f },
         { 120.0f, 3.636364f, 5.454545f, 2.727273f }, // 120 / 66 of the Gain knob's
