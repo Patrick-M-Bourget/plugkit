@@ -353,6 +353,22 @@ struct HostWindow final : juce::Component
                                      juce::MouseInputSource::defaultOrientation, juce::Time::currentTimeMillis());
     }
 
+    // The left button pressed at at, in c's coordinates, and held while this lives (dragTo moves it so); released where
+    // the pointer last was when it goes, so a failed check can't leave JUCE's button down for the tests after.
+    class ButtonHeld
+    {
+    public:
+        ButtonHeld (HostWindow& w, juce::Component& c, juce::Point<float> at) : window (w) { dragTo (c, at); }
+        ~ButtonHeld() { window.pointerAtWindow (window.lastPointer); }
+        ButtonHeld (const ButtonHeld&) = delete;
+        ButtonHeld& operator= (const ButtonHeld&) = delete;
+
+        void dragTo (juce::Component& c, juce::Point<float> at) { window.pointerAt (c, at, juce::ModifierKeys::leftButtonModifier); }
+
+    private:
+        HostWindow& window;
+    };
+
     // A wheel turn with the pointer at at, in c's coordinates.
     void wheelAt (juce::Component& c, juce::Point<float> at)
     {
@@ -406,7 +422,7 @@ private:
     juce::Point<float> lastPointer;
     juce::ModifierKeys lastMods;
     juce::Point<float> osPointer;
-    staple::TipWatchdog::ScopedPointer pointerStandIn { [this] { return localPointToGlobal (osPointer); } };
+    staple::TipWatchdog::ScopedPointerSource pointerStandIn { [this] { return localPointToGlobal (osPointer); } };
 
     void sent (juce::Point<float> at, juce::ModifierKeys mods)
     {

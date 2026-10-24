@@ -7,10 +7,11 @@ namespace staple
 
 namespace
 {
-TipWatchdog::PointerSource& standIn()
+// The innermost stand-in for the OS's pointer, or nullptr.
+TipWatchdog::ScopedPointerSource*& innermost()
 {
-    static TipWatchdog::PointerSource source;
-    return source;
+    static TipWatchdog::ScopedPointerSource* standIn = nullptr;
+    return standIn;
 }
 } // namespace
 
@@ -45,11 +46,26 @@ bool TipWatchdog::isPointerWithin (juce::Component& c, const juce::Path& area, j
 juce::Point<float> TipWatchdog::pointer()
 {
     // The main mouse source's screen position is the OS's live one, not its last event's.
-    return standIn() != nullptr ? standIn()() : juce::Desktop::getInstance().getMainMouseSource().getScreenPosition();
+    const auto* standIn = innermost();
+    return standIn != nullptr ? standIn->position() : juce::Desktop::getInstance().getMainMouseSource().getScreenPosition();
 }
 
-TipWatchdog::ScopedPointer::ScopedPointer (PointerSource source) : previous (std::move (standIn())) { standIn() = std::move (source); }
+TipWatchdog::ScopedPointerSource::ScopedPointerSource (PointerSource s) : source (std::move (s)), outer (innermost())
+{
+    innermost() = this;
+}
 
-TipWatchdog::ScopedPointer::~ScopedPointer() { standIn() = std::move (previous); }
+TipWatchdog::ScopedPointerSource::~ScopedPointerSource()
+{
+    jassert (innermost() == this); // a stand-in made inside this one outlives it
+    for (auto** link = &innermost(); *link != nullptr; link = &(*link)->outer)
+    {
+        if (*link == this)
+        {
+            *link = outer;
+            break;
+        }
+    }
+}
 
 } // namespace staple

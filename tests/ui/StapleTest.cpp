@@ -7,6 +7,7 @@
 #include "plugkit/ui/staple/Icons.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
 #include "plugkit/ui/staple/Painting.h"
+#include "plugkit/ui/staple/TipWatchdog.h"
 #include "plugkit/ui/staple/Tokens.h"
 #include "plugkit/ui/staple/controls/Tween.h"
 
@@ -303,6 +304,24 @@ TEST_CASE ("A Tween counts as easing from towards() until it lands, and not afte
         CHECK (staple::Tween::numberEasing() == 1);
     }
     CHECK (staple::Tween::numberEasing() == 0);
+}
+
+TEST_CASE ("Stand-ins for the OS's pointer nest: the innermost answers, and each going hands back to the one outside it")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    using Source = staple::TipWatchdog::ScopedPointerSource;
+    const juce::Point<float> outerAt { -1000.0f, -1000.0f }, innerAt { -2000.0f, -2000.0f };
+    {
+        const Source outer ([outerAt] { return outerAt; });
+        CHECK (staple::TipWatchdog::pointer() == outerAt);
+        {
+            const Source inner ([innerAt] { return innerAt; });
+            CHECK (staple::TipWatchdog::pointer() == innerAt);
+        }
+        CHECK (staple::TipWatchdog::pointer() == outerAt);
+    }
+    // The OS's pointer again, which is on a screen.
+    CHECK (staple::TipWatchdog::pointer() != outerAt);
 }
 
 // A Tween's frames run on a repeating timer, which a loaded machine's stalled timer thread fires once for all the frames

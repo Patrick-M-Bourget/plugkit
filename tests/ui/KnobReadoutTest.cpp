@@ -11,6 +11,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <optional>
+
 namespace
 {
 
@@ -170,16 +172,14 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
     };
     const auto doing = GENERATE (Doing::rests, Doing::drags, Doing::types);
     INFO ("The pointer " << (doing == Doing::rests ? "rests" : doing == Doing::drags ? "drags" : "types"));
+    std::optional<harness::HostWindow::ButtonHeld> held;
     switch (doing)
     {
         case Doing::rests: break;
         case Doing::drags:
-        {
-            const auto left = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
-            e.window.pointerAt (knob, knob.getFaceCentre(), left);
-            e.window.pointerAt (knob, rightOf (knob), left);
+            held.emplace (e.window, knob, knob.getFaceCentre());
+            held->dragTo (knob, rightOf (knob));
             break;
-        }
         case Doing::types:
             knob.getKnobTooltip()->startEditing();
             e.window.pointerUnseen (knob, rightOf (knob));
@@ -190,8 +190,6 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
     harness::settle (4 * staple::TipWatchdog::periodMs);
     CHECK (changes.hides == 0);
     CHECK (knob.isTooltipShown());
-    if (doing == Doing::drags)
-        e.window.pointerAt (knob, rightOf (knob));
 }
 
 namespace
