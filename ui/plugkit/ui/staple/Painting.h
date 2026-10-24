@@ -44,6 +44,16 @@ private:
 void drawKnobFace (juce::Graphics& g, juce::Rectangle<float> face, const juce::DropShadow& shadow, float rimWidth, juce::Colour rimColour,
                    float opacity = 1.0f);
 
+// A knob's stroke widths at a diameter, in px: its rim, its value arc, and the arc's glow either side of it. They are
+// tokens::knob's rim, arc and arcGlow (rimSmall and arcSmall at 30 px and below), times knobStrokeScale.
+struct KnobStrokes
+{
+    float rim, arc, arcGlow;
+};
+KnobStrokes knobStrokes (float diameter);
+// 1 up to tokens::knob::strokesScaleAbove, and the diameter over it above.
+float knobStrokeScale (float diameter);
+
 // The meter's colours (the Output Meter and the Threshold fader), vertical: meter1 at bottomY, meter2
 // and meter3 at stop2 and stop3 of the way up, meterClip from clipY up.
 juce::ColourGradient meterGradient (float bottomY, float clipY, double stop2, double stop3);

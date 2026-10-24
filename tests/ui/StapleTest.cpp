@@ -192,6 +192,34 @@ TEST_CASE ("The expand and collapse arrows point out to the corners and in to th
 // A shadow that blurs renders an image on every paint; the kit's controls repaint at frame rate, so
 // their shadows are drawSoftShadow's stacked shapes instead (HANDOFF.md §4). Outside the control, what
 // the LookAndFeel draws is that shadow and nothing else.
+// The family's one-knob size (comp1's Compact View Comp), beyond Staple's Frequency, Gain, Q and small.
+TEST_CASE ("The hero knob is 120 px")
+{
+    CHECK (juce::exactlyEqual (staple::tokens::knob::hero, 120.0f));
+}
+
+TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 66 px, and grow with the diameter above it")
+{
+    struct Row
+    {
+        float diameter, rim, arc, arcGlow;
+    };
+    const Row rows[] = {
+        { 30.0f, 1.5f, 2.0f, 1.5f },
+        { 50.0f, 2.0f, 3.0f, 1.5f },
+        { 66.0f, 2.0f, 3.0f, 1.5f },
+        { 120.0f, 3.636364f, 5.454545f, 2.727273f }, // 120 / 66 of the Gain knob's
+    };
+    for (const auto& row : rows)
+    {
+        CAPTURE (row.diameter);
+        const auto strokes = staple::knobStrokes (row.diameter);
+        CHECK_THAT (strokes.rim, WithinAbs (row.rim, 1.0e-5));
+        CHECK_THAT (strokes.arc, WithinAbs (row.arc, 1.0e-5));
+        CHECK_THAT (strokes.arcGlow, WithinAbs (row.arcGlow, 1.0e-5));
+    }
+}
+
 TEST_CASE ("Staple's LookAndFeel draws a stock knob's and slider thumb's shadows without blur")
 {
     juce::ScopedJuceInitialiser_GUI juce;

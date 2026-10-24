@@ -45,9 +45,9 @@ Staple was designed for eq1 (`eq1/docs/staple-handoff`: `tokens.json`, `tokens.c
 - Analyzer: a fill from `an-fill-top` through `an-fill-mid` to nothing, a 1 px `an-line`, Peak Hold in `an-peak`, and the Sidechain in `an-sc-line`.
 - Main curve: 2 px `curve-main` over a 4 px `curve-main-halo`.
 
-**Knobs** (`knob-large` 66 px, `knob-medium` 50 px, `knob-small` 30 px).
+**Knobs** (`knob-large` 66 px, `knob-medium` 50 px, `knob-small` 30 px; `knob-hero` 120 px only where a view has one knob, comp1's Compact View Comp).
 - **Face:** a radial gradient from `knob-face-top` through `knob-face-mid` to `knob-face-edge`, lit from the top, with a `knob-rim` rim (2 px, or 1.5 px at 30 px).
-- **Value arc:** 3 px (2 px below 40 px), radius r − max(4.5, d × 0.1), sweeping 270°. Bipolar knobs start at 12 o'clock. **No background track.** The arc is `curve-main`, or the Band colour in eq1's Band panel.
+- **Value arc:** 3 px (2 px below 40 px), radius r − max(4.5, d × 0.1), sweeping 270°. Above 66 px, the rim, arc and glow grow by d / 66. Bipolar knobs start at 12 o'clock. **No background track.** The arc is `curve-main`, or the Band colour in eq1's Band panel.
 - **Ring:** an optional 12 px lane in `knob-ring-lane`, 10 px outside the knob.
   - eq1 fills it with Dynamic Range: a `dyn-range` gradient, with live reduction in `dyn-live`.
   - comp1 fills it with the Detection Level on Threshold, in `an-sc`, and with Gain Reduction on Ceiling, in `dyn-range`.

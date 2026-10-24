@@ -738,6 +738,39 @@ TEST_CASE ("A disabled Edge selector paints the same hovered, pressed or not")
     CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
 }
 
+TEST_CASE ("A hero Knob paints its arc and glow wider than the Gain knob's, in proportion to its diameter")
+{
+    // How much arc colour the knob's row through its centre carries across the arc at 9 o'clock, in px of full colour:
+    // the arc's width plus 30 % of its glow either side.
+    const auto [diameter, expected] = GENERATE (table<float, float> ({
+        { staple::tokens::knob::gain, 3.0f + 2.0f * 0.3f * 1.5f },
+        { staple::tokens::knob::hero, 5.454545f + 2.0f * 0.3f * 2.727273f }, // 120 / 66 of the Gain knob's widths
+    }));
+    CAPTURE (diameter);
+    Kit kit;
+    kit.window.setSize (300, 300);
+    staple::Knob knob (diameter);
+    knob.setArcColour (staple::tokens::colour::curveMain);
+    knob.setRange (0.0, 1.0);
+    knob.setValue (1.0);
+    kit.add (knob, { 0, 0, knob.getIdealSize(), knob.getIdealSize() });
+    const auto image = knob.createComponentSnapshot (knob.getLocalBounds(), true, 1.0f);
+
+    const auto centre = centreOf (knob).roundToInt();
+    const float arcRadius = diameter / 2.0f - std::max (4.5f, std::round (diameter * 0.1f));
+    // From well inside the arc, past its centre line, to short of the rim.
+    const float inner = arcRadius - expected, outer = std::floor (arcRadius + 0.6f * (diameter / 2.0f - 1.0f - arcRadius));
+    const auto red = [&] (float fromCentre) {
+        return static_cast<float> (image.getPixelAt (centre.x - juce::roundToInt (fromCentre), centre.y).getRed());
+    };
+    const float face = red (inner - 2.0f);
+    const float full = static_cast<float> (staple::tokens::colour::curveMain.getRed());
+    float coverage = 0.0f;
+    for (int x = juce::roundToInt (inner); x <= juce::roundToInt (outer); ++x)
+        coverage += (red (static_cast<float> (x)) - face) / (full - face);
+    CHECK_THAT (coverage, WithinAbs (expected, 0.35));
+}
+
 TEST_CASE ("Tab skips a disabled Knob")
 {
     Kit kit;
@@ -930,6 +963,36 @@ TEST_CASE ("The Staple controls kit's gallery", "[.screens]")
     CHECK (popover.isVisible());
     CHECK (popover.getAlpha() == 1.0f);
     harness::writeSnapshot (w, "gallery");
+}
+
+// Not run by ctest: draws the kit's knob sizes side by side, small to hero, at one value, as knob-sizes
+// (harness::writeSnapshot), for checking by hand that every size reads as the same recipe.
+TEST_CASE ("The Staple controls kit's knob sizes", "[.screens]")
+{
+    Kit kit;
+    auto& w = kit.window;
+    w.setSize (500, 200);
+    w.setOpaque (true);
+    struct Background final : juce::Component
+    {
+        void paint (juce::Graphics& g) override { g.fillAll (staple::tokens::colour::bg0); }
+    } background;
+    kit.add (background, w.getLocalBounds());
+
+    namespace t = staple::tokens;
+    std::vector<std::unique_ptr<staple::Knob>> knobs;
+    int x = 16;
+    for (const float d : { t::knob::small, t::knob::q, t::knob::gain, t::knob::hero })
+    {
+        auto& k = *knobs.emplace_back (std::make_unique<staple::Knob> (d));
+        k.setArcColour (t::colour::curveMain);
+        k.setRange (0.0, 1.0);
+        k.setValue (0.7);
+        const int s = k.getIdealSize();
+        kit.add (k, { x, w.getHeight() / 2 - s / 2, s, s });
+        x += s + 8;
+    }
+    harness::writeSnapshot (w, "knob-sizes");
 }
 
 TEST_CASE ("A Knob's tooltip and a Popover open inside the editor's scaled content, so they scale with it")

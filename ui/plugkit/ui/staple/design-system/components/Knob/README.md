@@ -10,7 +10,7 @@ The rotary control for every continuous parameter in the family, drawn the same 
 - **Ring** (optional): a 12 px lane in `knob-ring-lane`, `space-ring-offset` (10 px) outside the knob. It is filled with a red range gradient in eq1 (Dynamic Range), with the teal Detection Level on comp1's Threshold, or with Gain Reduction on comp1's Ceiling. A ▲▼ grab hint in `ring-hint` sits at its end.
 - **Label:** below the knob, in the `control` style and `text-2`. Labels sit on one baseline even when knob sizes differ. There's no value read-out.
 
-**Sizes.** `knob-large` (66 px) for the primary control, `knob-medium` (50 px) for secondary controls, `knob-small` (30 px) for tertiary ones. A knob of 30 px or less takes a 1.5 px rim.
+**Sizes.** `knob-large` (66 px) for the primary control, `knob-medium` (50 px) for secondary controls, `knob-small` (30 px) for tertiary ones. A knob of 30 px or less takes a 1.5 px rim. `knob-hero` (120 px) is for a view whose one knob is the whole control, comp1's Compact View Comp, and nowhere beside other knobs. Above 66 px, the rim, arc and glow widths grow in proportion to the diameter (× d / 66), so the hero knob's arc is about 5.5 px.
 
 **Behaviour.**
 - **Drag:** vertical, 200 px for the full range, 800 px with Shift.
