@@ -20,6 +20,9 @@
 
 using Catch::Matchers::WithinAbs;
 
+// Under Global Bypass, what shows a plugin's work keeps 45 % of its alphas: eq1's value, which comp1 shares.
+static_assert (juce::exactlyEqual (staple::tokens::motion::globalBypassScale, 0.45f));
+
 TEST_CASE ("Staple's font is Manrope, with digits of equal width so numbers don't jitter")
 {
     juce::ScopedJuceInitialiser_GUI juce;
