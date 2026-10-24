@@ -1,6 +1,9 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/controls/KnobTooltip.h (eq1 at dbb1127); listed in eq1#231.
+// Copied from eq1's plugin/staple/controls/KnobTooltip.h (eq1 at dbb1127), and its watchdog (TipWatchdog), which eq1
+// takes from here; listed in eq1#231.
+
+#include "../TipWatchdog.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -16,7 +19,9 @@ class Knob;
 // knob's label from the label's top (Knob::setLabel), or above the face where there is no room below,
 // in the knob's overlay layer (Overlay.h), and fades in over dur1. It is never a focus stop. A double-click
 // on it opens a field for typing a value: Enter commits it as one undo step, Esc or leaving the field
-// cancels. The Knob owns it and shows and hides it.
+// cancels. The Knob owns it and shows and hides it. While it shows, its TipWatchdog hides it once the OS has the
+// pointer off both the knob and the Readout, unless the knob is being dragged or a value typed, as the knob does when
+// the pointer leaves it.
 class KnobTooltip final : public juce::Component
 {
 public:
@@ -45,6 +50,7 @@ private:
     void stopEditing (bool commit);
 
     Knob& knob;
+    TipWatchdog watchdog;
     juce::String title, value;
     std::unique_ptr<juce::TextEditor> editor;
 };
