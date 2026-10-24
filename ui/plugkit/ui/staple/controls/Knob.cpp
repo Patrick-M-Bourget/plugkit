@@ -181,7 +181,8 @@ void Knob::paint (juce::Graphics& g)
 
     // The face, inset 1 px, on its shadow, lit from 12 % below its top.
     const auto face = juce::Rectangle<float> (diameter, diameter).withCentre (centre).reduced (1.0f);
-    drawKnobFace (g, face, shadowFor (diameter), isSmall (diameter) ? knobs::rimSmall : knobs::rim,
+    const auto strokes = knobStrokes (diameter);
+    drawKnobFace (g, face, shadowFor (diameter), strokes.rim,
                   isSmall (diameter) ? tokens::colour::knobRimSmall : tokens::colour::knobRim);
 
     // The value arc, from its origin, on a wider translucent stroke as its glow.
@@ -195,12 +196,11 @@ void Knob::paint (juce::Graphics& g)
         const float radius = arcRadius();
         juce::Path arc;
         arc.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, from, to, true);
-        const float width = isSmall (diameter) ? knobs::arcSmall : knobs::arc;
         const auto stroke = [&] (float w) { return juce::PathStrokeType (w, juce::PathStrokeType::curved, juce::PathStrokeType::rounded); };
         g.setColour (arcColour.withMultipliedAlpha (knobs::arcGlowAlpha));
-        g.strokePath (arc, stroke (width + 2.0f * knobs::arcGlow));
+        g.strokePath (arc, stroke (strokes.arc + 2.0f * strokes.arcGlow));
         g.setColour (arcColour);
-        g.strokePath (arc, stroke (width));
+        g.strokePath (arc, stroke (strokes.arc));
     }
 
     if (! isEnabled())

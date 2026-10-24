@@ -92,6 +92,16 @@ void drawKnobFace (juce::Graphics& g, juce::Rectangle<float> face, const juce::D
     g.drawEllipse (face.reduced (rimWidth / 2.0f), rimWidth);
 }
 
+float knobStrokeScale (float diameter) { return std::max (1.0f, diameter / tokens::knob::strokesScaleAbove); }
+
+KnobStrokes knobStrokes (float diameter)
+{
+    const bool small = diameter <= tokens::knob::small;
+    const float scale = knobStrokeScale (diameter);
+    return { scale * (small ? tokens::knob::rimSmall : tokens::knob::rim), scale * (small ? tokens::knob::arcSmall : tokens::knob::arc),
+             scale * tokens::knob::arcGlow };
+}
+
 juce::ColourGradient meterGradient (float bottomY, float clipY, double stop2, double stop3)
 {
     juce::ColourGradient gradient (colour::meter1, 0.0f, bottomY, colour::meterClip, 0.0f, clipY, false);

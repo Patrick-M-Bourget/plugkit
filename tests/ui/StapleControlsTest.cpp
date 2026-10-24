@@ -738,6 +738,39 @@ TEST_CASE ("A disabled Edge selector paints the same hovered, pressed or not")
     CHECK_THAT (h.brightness(), WithinAbs (rest, 1.0e-6));
 }
 
+TEST_CASE ("A hero Knob paints its arc and glow wider than the Gain knob's, in proportion to its diameter")
+{
+    // How much arc colour the knob's row through its centre carries across the arc at 9 o'clock, in px of full colour:
+    // the arc's width plus 30 % of its glow either side.
+    const auto [diameter, expected] = GENERATE (table<float, float> ({
+        { staple::tokens::knob::gain, 3.0f + 2.0f * 0.3f * 1.5f },
+        { staple::tokens::knob::hero, 5.454545f + 2.0f * 0.3f * 2.727273f }, // 120 / 66 of the Gain knob's widths
+    }));
+    CAPTURE (diameter);
+    Kit kit;
+    kit.window.setSize (300, 300);
+    staple::Knob knob (diameter);
+    knob.setArcColour (staple::tokens::colour::curveMain);
+    knob.setRange (0.0, 1.0);
+    knob.setValue (1.0);
+    kit.add (knob, { 0, 0, knob.getIdealSize(), knob.getIdealSize() });
+    const auto image = knob.createComponentSnapshot (knob.getLocalBounds(), true, 1.0f);
+
+    const auto centre = centreOf (knob).roundToInt();
+    const float arcRadius = diameter / 2.0f - std::max (4.5f, std::round (diameter * 0.1f));
+    // From well inside the arc, past its centre line, to short of the rim.
+    const float inner = arcRadius - expected, outer = std::floor (arcRadius + 0.6f * (diameter / 2.0f - 1.0f - arcRadius));
+    const auto red = [&] (float fromCentre) {
+        return static_cast<float> (image.getPixelAt (centre.x - juce::roundToInt (fromCentre), centre.y).getRed());
+    };
+    const float face = red (inner - 2.0f);
+    const float full = static_cast<float> (staple::tokens::colour::curveMain.getRed());
+    float coverage = 0.0f;
+    for (int x = juce::roundToInt (inner); x <= juce::roundToInt (outer); ++x)
+        coverage += (red (static_cast<float> (x)) - face) / (full - face);
+    CHECK_THAT (coverage, WithinAbs (expected, 0.35));
+}
+
 TEST_CASE ("Tab skips a disabled Knob")
 {
     Kit kit;
