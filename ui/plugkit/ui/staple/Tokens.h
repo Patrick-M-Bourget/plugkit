@@ -103,6 +103,9 @@ namespace size
     constexpr float fs3 = 12.0f;
     constexpr float fs4 = 13.0f;
     constexpr float fs5 = 16.0f;
+    // Uppercase text's letter-spacing, 0.08 em (design-system/tokens.json, the "section" style's letterSpacing), as a
+    // juce::Font extra kerning factor. Mixed-case text has none.
+    constexpr float capsTracking = 0.08f;
     constexpr float r1 = 4.0f;
     constexpr float r2 = 6.0f;
     constexpr float r3 = 10.0f;
@@ -124,11 +127,12 @@ namespace layout
 namespace knob
 {
     constexpr float frequency = 50.0f, gain = 66.0f, q = 50.0f, small = 30.0f;
-    // The family's one-knob size: comp1's Compact View Comp, its only knob. Beyond Staple's Frequency, Gain, Q and
-    // small sizes, approved for that view alone.
+    // The family's one-knob size: a view's one-knob control, centred, with smaller controls beside it (comp1's
+    // Compact View Comp). Beyond Staple's Frequency, Gain, Q and small sizes, approved for that view alone.
     constexpr float hero = 120.0f;
     constexpr float rim = 2.0f, rimSmall = 1.5f;           // rimSmall at 30 px and below
-    constexpr float arc = 3.0f, arcSmall = 2.0f;           // arcSmall below 40 px
+    constexpr float arc = 3.0f, arcSmall = 2.0f;           // arcSmall below arcSmallBelow
+    constexpr float arcSmallBelow = 40.0f;
     constexpr float arcInset = 4.5f, arcInsetProportion = 0.1f; // the arc's radius is r - max (arcInset, d x arcInsetProportion)
     constexpr float sweepDegrees = 270.0f;
     constexpr float arcGlow = 1.5f, arcGlowAlpha = 0.3f;   // a wider translucent stroke under the arc

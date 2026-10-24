@@ -96,9 +96,9 @@ float knobStrokeScale (float diameter) { return std::max (1.0f, diameter / token
 
 KnobStrokes knobStrokes (float diameter)
 {
-    const bool small = diameter <= tokens::knob::small;
+    const bool smallRim = diameter <= tokens::knob::small, smallArc = diameter < tokens::knob::arcSmallBelow;
     const float scale = knobStrokeScale (diameter);
-    return { scale * (small ? tokens::knob::rimSmall : tokens::knob::rim), scale * (small ? tokens::knob::arcSmall : tokens::knob::arc),
+    return { scale * (smallRim ? tokens::knob::rimSmall : tokens::knob::rim), scale * (smallArc ? tokens::knob::arcSmall : tokens::knob::arc),
              scale * tokens::knob::arcGlow };
 }
 

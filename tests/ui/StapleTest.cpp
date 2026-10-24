@@ -49,6 +49,9 @@ static_assert (juce::exactlyEqual (staple::tokens::curve::mainHalo, 4.0f));
 static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHalo, 8.0f));
 static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHaloAlpha, 0.5f));
 
+// Uppercase text's tracking, tokens.json's "section" letterSpacing: 0.08 em.
+static_assert (juce::exactlyEqual (staple::tokens::size::capsTracking, 0.08f));
+
 TEST_CASE ("The section title's font is the design system's section style: 12 px Manrope at 700, letter-spaced 0.08 em")
 {
     juce::ScopedJuceInitialiser_GUI juce;
@@ -56,7 +59,17 @@ TEST_CASE ("The section title's font is the design system's section style: 12 px
     const auto font = staple::sectionTitleFont();
     CHECK (font.getTypefacePtr() == staple::typeface (staple::Weight::bold));
     CHECK_THAT (font.getHeightInPoints(), WithinAbs (12.0f, 1.0e-4));
-    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.08f, 1.0e-6));
+    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (staple::tokens::size::capsTracking, 1.0e-6));
+}
+
+TEST_CASE ("The label font is the design system's label style: 11 px Manrope at 500, not letter-spaced")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    const juce::SharedResourcePointer<staple::Typefaces> held; // the same medium typeface for both calls below
+    const auto font = staple::labelFont();
+    CHECK (font.getTypefacePtr() == staple::typeface (staple::Weight::medium));
+    CHECK_THAT (font.getHeightInPoints(), WithinAbs (11.0f, 1.0e-4));
+    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.0f, 1.0e-6));
 }
 
 TEST_CASE ("A toggle as wide as its ideal width draws its label whole, as a wider one does, and a pixel narrower squeezes it")
@@ -198,7 +211,7 @@ TEST_CASE ("The hero knob is 120 px")
     CHECK (juce::exactlyEqual (staple::tokens::knob::hero, 120.0f));
 }
 
-TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 66 px, and grow with the diameter above it")
+TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 66 px, and grow with the diameter above it; the arc is thin below 40 px")
 {
     struct Row
     {
@@ -206,6 +219,7 @@ TEST_CASE ("A knob's rim, arc and glow keep their widths up to the Gain knob's 6
     };
     const Row rows[] = {
         { 30.0f, 1.5f, 2.0f, 1.5f },
+        { 36.0f, 2.0f, 2.0f, 1.5f }, // above the small rim's 30 px, below the full arc's 40 px
         { 50.0f, 2.0f, 3.0f, 1.5f },
         { 66.0f, 2.0f, 3.0f, 1.5f },
         { 120.0f, 3.636364f, 5.454545f, 2.727273f }, // 120 / 66 of the Gain knob's

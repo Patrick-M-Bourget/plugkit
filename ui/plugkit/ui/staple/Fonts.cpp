@@ -35,7 +35,9 @@ juce::Font font (float size, Weight weight)
     return typefaces->fonts.emplace (key, made).first->second;
 }
 
-juce::Font sectionTitleFont() { return font (tokens::size::fs3, Weight::bold).withExtraKerningFactor (0.08f); }
+juce::Font sectionTitleFont() { return font (tokens::size::fs3, Weight::bold).withExtraKerningFactor (tokens::size::capsTracking); }
+
+juce::Font labelFont() { return font (tokens::size::fs2, Weight::medium); }
 
 int textWidth (const juce::Font& font, const juce::String& text)
 {
