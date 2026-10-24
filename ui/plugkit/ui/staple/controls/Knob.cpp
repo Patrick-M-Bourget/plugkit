@@ -151,6 +151,8 @@ bool Knob::isOnRing (juce::Point<float> position) const
     return distance > getFaceRadius() + 1.0f && distance <= hitRadius();
 }
 
+bool Knob::isOnRingAsHit (const juce::MouseEvent& e) const { return isOnRing (e.position.roundToInt().toFloat()); }
+
 float Knob::hitRadius() const { return getFaceRadius() + (ring != nullptr ? ringOffset + ringWidth / 2.0f : 0.0f); }
 
 float Knob::arcRadius() const
@@ -220,7 +222,7 @@ void Knob::mouseEnter (const juce::MouseEvent& e)
 
 void Knob::mouseMove (const juce::MouseEvent& e)
 {
-    const bool over = isEnabled() && isOnRing (e.position);
+    const bool over = isEnabled() && isOnRingAsHit (e);
     if (over != ringHovered)
     {
         ringHovered = over;
@@ -252,7 +254,7 @@ void Knob::mouseDown (const juce::MouseEvent& e)
 {
     if (! isEnabled() || ! e.mods.isLeftButtonDown())
         return;
-    if (isOnRing (e.position))
+    if (isOnRingAsHit (e))
     {
         ringDragging = true;
         ring->ringMouseDown (*this, e);
