@@ -115,6 +115,14 @@ inline juce::MouseEvent mouseEvent (juce::Component& target, juce::Point<float> 
              position != pressedAt };
 }
 
+// One notch of a mouse wheel turned down.
+inline juce::MouseWheelDetails wheelTurn()
+{
+    juce::MouseWheelDetails wheel {};
+    wheel.deltaY = 0.1f;
+    return wheel;
+}
+
 // The key with Shift held.
 inline juce::KeyPress withShift (juce::KeyPress key) { return { key.getKeyCode(), juce::ModifierKeys::shiftModifier, 0 }; }
 
@@ -349,9 +357,7 @@ struct HostWindow final : juce::Component
     void wheelAt (juce::Component& c, juce::Point<float> at)
     {
         sent (getLocalPoint (&c, at), {});
-        juce::MouseWheelDetails wheel {};
-        wheel.deltaY = 0.1f;
-        getPeer()->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, lastPointer, juce::Time::currentTimeMillis(), wheel);
+        getPeer()->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, lastPointer, juce::Time::currentTimeMillis(), wheelTurn());
     }
 
     // The pointer again where it last was, as JUCE's fake move after a component is shown, hidden or moved sends it:
@@ -362,6 +368,37 @@ struct HostWindow final : juce::Component
     // one takes the pointer's events. A tip's watchdog (staple::TipWatchdog) reads the pointer from here, where every
     // other call above puts it too, rather than from the machine's real mouse.
     void pointerUnseen (juce::Component& c, juce::Point<float> at) { osPointer = getLocalPoint (&c, at); }
+
+    // How the OS can have the pointer leave a control without sending the window an event.
+    enum class UnseenExit
+    {
+        offTheControl,     // another window over this one took the pointer's events as it moved
+        overAnotherWindow, // another window came over the control, under the pointer
+        windowHidden,      // the host hid the window itself
+    };
+
+    static const char* describe (UnseenExit how)
+    {
+        switch (how)
+        {
+            case UnseenExit::offTheControl: return "off the control";
+            case UnseenExit::overAnotherWindow: return "over another window";
+            case UnseenExit::windowHidden: return "in a window the host hid";
+        }
+        return "";
+    }
+
+    // The pointer, on control, leaves it as how says, with no event: moved to to (in control's coordinates) unseen,
+    // another window over all of control, or the window hidden.
+    void pointerLeavesUnseen (UnseenExit how, juce::Component& control, juce::Point<float> to)
+    {
+        switch (how)
+        {
+            case UnseenExit::offTheControl: pointerUnseen (control, to); break;
+            case UnseenExit::overAnotherWindow: peer().covered = getLocalArea (&control, control.getLocalBounds()); break;
+            case UnseenExit::windowHidden: peer().visible = false; break;
+        }
+    }
 
     FakePeer& peer() { return dynamic_cast<FakePeer&> (*getPeer()); }
 

@@ -3,6 +3,7 @@
 // and JUCE's own Tooltip timer shows and hides tips. The Tooltip window asks a tip source that answers as JUCE's
 // getTipFor does in the foreground; JUCE's answers nothing to a test, which runs in the background.
 
+#include "TipControls.h"
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
 #include "plugkit/ui/staple/TipWatchdog.h"
@@ -25,26 +26,23 @@ juce::String tipOf (juce::Component& c)
     return client != nullptr ? client->getTooltip() : juce::String();
 }
 
-// Two controls with tips and a bare one, under the editor's Tooltip window, in a host's window.
+// The Tooltip tests' controls (TipControls), under the editor's Tooltip window, in a host's window.
 struct Hosted
 {
     juce::ScopedJuceInitialiser_GUI juce;
     staple::LookAndFeel lookAndFeel;
     juce::Component content;
-    juce::TextButton gain { "Gain" }, mix { "Mix" };
-    juce::Component bare;
+    plugkit::test::TipControls controls;
+    juce::TextButton &gain = controls.gain, &mix = controls.mix;
+    juce::Component& bare = controls.bare;
     staple::TooltipWindow tips { &content, tipOf };
     std::unique_ptr<harness::HostWindow> window;
 
     Hosted()
     {
         content.setLookAndFeel (&lookAndFeel);
-        content.setBounds (0, 0, 300, 200);
-        gain.setTooltip ("Gain");
-        mix.setTooltip ("Mix");
-        place (gain, { 20, 20, 60, 24 });
-        place (mix, { 100, 20, 60, 24 });
-        place (bare, { 20, 120, 60, 24 });
+        content.setBounds (plugkit::test::TipControls::contentArea());
+        controls.placeIn (content);
         window = std::make_unique<harness::HostWindow> (content);
     }
 
@@ -52,12 +50,6 @@ struct Hosted
     {
         window.reset();
         content.setLookAndFeel (nullptr);
-    }
-
-    void place (juce::Component& c, juce::Rectangle<int> bounds)
-    {
-        content.addAndMakeVisible (c);
-        c.setBounds (bounds);
     }
 
     static juce::Point<float> centreOf (juce::Component& c) { return c.getLocalBounds().toFloat().getCentre(); }
@@ -137,14 +129,10 @@ TEST_CASE ("A Tooltip fades out on its watchdog's check once the OS has the poin
 {
     Hosted h;
     h.restOn (h.gain);
-    const std::string where = GENERATE ("off the control", "over another window", "in a window the host hid");
-    INFO ("The pointer is " << where);
-    if (where == "off the control")
-        h.window->pointerUnseen (h.bare, Hosted::centreOf (h.bare));
-    else if (where == "over another window")
-        h.window->peer().covered = h.window->getLocalArea (&h.gain, h.gain.getLocalBounds());
-    else
-        h.window->peer().visible = false;
+    using Exit = harness::HostWindow::UnseenExit;
+    const auto how = GENERATE (Exit::offTheControl, Exit::overAnotherWindow, Exit::windowHidden);
+    INFO ("The pointer is " << harness::HostWindow::describe (how));
+    h.window->pointerLeavesUnseen (how, h.gain, h.gain.getLocalPoint (&h.bare, Hosted::centreOf (h.bare)));
 
     REQUIRE (harness::settleUntil ([&] { return ! h.tips.isVisible() && ! h.tips.fadingOut().isVisible(); }));
     // Faded to nothing, not cut: the fade's last frame leaves its picture transparent (it starts opaque).

@@ -149,14 +149,10 @@ TEST_CASE ("A Knob Readout hides on its watchdog's check once the OS has the poi
     Hosted e;
     auto& knob = e.frequency();
     e.hover (knob);
-    const std::string where = GENERATE ("off the knob", "over another window", "in a window the host hid");
-    INFO ("The pointer is " << where);
-    if (where == "off the knob")
-        e.window.pointerUnseen (knob, rightOf (knob));
-    else if (where == "over another window")
-        e.window.peer().covered = e.window.getLocalArea (&knob, knob.getLocalBounds());
-    else
-        e.window.peer().visible = false;
+    using Exit = harness::HostWindow::UnseenExit;
+    const auto how = GENERATE (Exit::offTheControl, Exit::overAnotherWindow, Exit::windowHidden);
+    INFO ("The pointer is " << harness::HostWindow::describe (how));
+    e.window.pointerLeavesUnseen (how, knob, rightOf (knob));
 
     CHECK (harness::settleUntil ([&] { return ! knob.isTooltipShown(); }));
 }
@@ -166,25 +162,35 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
     Hosted e;
     auto& knob = e.frequency();
     e.hover (knob);
-    const std::string doing = GENERATE ("rests", "drags", "types");
-    INFO ("The pointer " << doing);
-    if (doing == "drags")
+    enum class Doing
     {
-        const auto left = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
-        e.window.pointerAt (knob, knob.getFaceCentre(), left);
-        e.window.pointerAt (knob, rightOf (knob), left);
-    }
-    else if (doing == "types")
+        rests,
+        drags,
+        types
+    };
+    const auto doing = GENERATE (Doing::rests, Doing::drags, Doing::types);
+    INFO ("The pointer " << (doing == Doing::rests ? "rests" : doing == Doing::drags ? "drags" : "types"));
+    switch (doing)
     {
-        knob.getKnobTooltip()->startEditing();
-        e.window.pointerUnseen (knob, rightOf (knob));
+        case Doing::rests: break;
+        case Doing::drags:
+        {
+            const auto left = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier);
+            e.window.pointerAt (knob, knob.getFaceCentre(), left);
+            e.window.pointerAt (knob, rightOf (knob), left);
+            break;
+        }
+        case Doing::types:
+            knob.getKnobTooltip()->startEditing();
+            e.window.pointerUnseen (knob, rightOf (knob));
+            break;
     }
     // Through the watchdog's checks, which fire before the harness's timer as they fall due sooner.
     const harness::VisibilityChanges changes (*knob.getKnobTooltip());
     harness::settle (4 * staple::TipWatchdog::periodMs);
     CHECK (changes.hides == 0);
     CHECK (knob.isTooltipShown());
-    if (doing == "drags")
+    if (doing == Doing::drags)
         e.window.pointerAt (knob, rightOf (knob));
 }
 
