@@ -41,6 +41,8 @@ struct Label
 // The Frequency labels along the bottom, then the Gain labels at the right, from the top down, signed,
 // without +/- the Display Range itself.
 std::vector<Label> gridLabels (const DisplayGeometry& geometry);
+// gridLabels' Frequency labels alone, for a display with a dB scale of its own.
+std::vector<Label> frequencyLabels (const DisplayGeometry& geometry);
 
 // The Analyzer's own dB scale at the outer right, on its scale (the top of the display is 0 dB): 10 dB
 // steps, 20 dB above a 90 dB range, kept clear of the top and bottom; none when the Analyzer shows
