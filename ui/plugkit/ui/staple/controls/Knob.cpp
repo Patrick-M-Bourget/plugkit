@@ -1,6 +1,7 @@
 // Copied from eq1's plugin/staple/controls/Knob.cpp (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and its
 // Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin, as
-// TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout); listed in eq1#231.
+// TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout), keeping on that way
+// the content it had as the pointer left the face or ring; listed in eq1#231.
 
 #include "Knob.h"
 
@@ -127,7 +128,7 @@ void Knob::setArcOrigin (double value)
 void Knob::setRing (RingHandler* handler, float width, float offset)
 {
     ring = handler;
-    ringHovered = ringDragging = false;
+    ringHovered = ringDragging = readoutOnRing = false;
     ringWidth = width;
     ringOffset = offset;
     repaint();
@@ -212,9 +213,9 @@ bool Knob::hitTest (int x, int y)
 //==============================================================================
 void Knob::mouseEnter (const juce::MouseEvent& e)
 {
+    mouseMove (e); // first, so the Readout shows what is under the pointer
     if (isEnabled())
         showTooltip();
-    mouseMove (e);
 }
 
 void Knob::mouseMove (const juce::MouseEvent& e)
@@ -224,6 +225,12 @@ void Knob::mouseMove (const juce::MouseEvent& e)
     {
         ringHovered = over;
         ring->ringHover (*this, over);
+    }
+    // Only here, on the face or ring: off them, the Readout keeps the content (and so the size, and the way to it) it had
+    // as the pointer left.
+    if (over != readoutOnRing)
+    {
+        readoutOnRing = over;
         if (tooltip != nullptr)
             tooltip->refresh();
     }
