@@ -1,7 +1,7 @@
 // Copied from eq1's plugin/staple/controls/Knob.cpp (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and its
 // Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin, as
 // TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout), keeping on that way
-// the content it had as the pointer left the face or ring; listed in eq1#231.
+// the content it had as the pointer left the face or ring, and hiding another knob's as it shows; listed in eq1#231.
 
 #include "Knob.h"
 
@@ -349,6 +349,11 @@ void Knob::showTooltip()
     tooltip->refresh();
     if (! tooltip->isVisible())
         tooltip->appear();
+    // One Knob Readout at a time on the layer: another knob's, kept on the way to it across this knob, goes, unless a
+    // value is being typed into it.
+    for (auto* child : layer.getChildren())
+        if (auto* other = dynamic_cast<KnobTooltip*> (child); other != nullptr && other != tooltip.get() && other->isVisible() && ! other->isEditing())
+            other->disappear();
 }
 
 void Knob::hideTooltipUnlessHovered (juce::Point<int> screenPosition)

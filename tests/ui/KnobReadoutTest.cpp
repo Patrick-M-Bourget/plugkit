@@ -580,3 +580,44 @@ TEST_CASE ("A ring's own Knob Readout keeps its content on every straight move f
     CHECK (readout.titleText() == "Gain");
     CHECK (e.window.getLocalArea (&readout, readout.getLocalBounds()).toFloat() == ownCard);
 }
+
+// Closely packed knobs, as on eq1's Band panel: the way to one knob's Readout crosses its neighbour's face.
+TEST_CASE ("One Knob Readout shows at a time: a neighbour's hides it on the way to it, unless it is being typed into")
+{
+    Hosted e;
+    auto& a = e.small;
+    // Its face's centre 30 px right of a's and 18 px down: on the way to a's Readout, beside the Readout's top.
+    staple::Knob b { staple::tokens::knob::small, "Neighbour" };
+    a.getParentComponent()->addAndMakeVisible (b);
+    b.setBounds (a.getBounds().translated (30, 18));
+    REQUIRE (b.getParentComponent()->getLocalBounds().contains (b.getBounds()));
+
+    const bool typing = GENERATE (false, true);
+    INFO ((typing ? "a's Readout is being typed into" : "a's Readout is not being typed into"));
+    e.hover (a);
+    auto& readoutA = *a.getKnobTooltip();
+    if (typing)
+    {
+        readoutA.startEditing();
+        REQUIRE (readoutA.isEditing());
+    }
+
+    const auto onB = e.window.getLocalPoint (&b, b.getFaceCentre());
+    int both = 0, step = 0;
+    walk (e.window, e.window.getLocalPoint (&a, a.getFaceCentre()), onB, [&] {
+        ++step;
+        if (! typing && both == 0 && a.isTooltipShown() && b.isTooltipShown())
+            both = step;
+    });
+    REQUIRE (Hosted::underPointer() == &b);
+    CHECK (b.isTooltipShown());
+    CHECK (both == 0);
+    CHECK (a.isTooltipShown() == typing);
+
+    // Through the watchdogs' checks.
+    harness::settle (3 * staple::TipWatchdog::periodMs);
+    CHECK (b.isTooltipShown());
+    CHECK (a.isTooltipShown() == typing);
+    if (typing)
+        CHECK (readoutA.isEditing());
+}
