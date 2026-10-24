@@ -107,6 +107,9 @@ private:
     // Hides the Readout unless the pointer at screenPosition is over the face (or ring) of the knob, enabled, or on its
     // way from there to the Readout, or on the Readout.
     void hideTooltipUnlessHovered (juce::Point<int> screenPosition);
+    // The Readout's watchdog's check, with the pointer as the OS has it: hides the Readout as the pointer leaving would,
+    // unless the knob is being dragged.
+    void watchTooltip (juce::Point<float> pointer);
     void hideTooltip();
     // The face's square, in the knob's coordinates.
     juce::Rectangle<float> faceArea() const;

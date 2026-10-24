@@ -20,10 +20,7 @@ constexpr int fieldWidth = 74, fieldHeight = 20;
 
 KnobTooltip::KnobTooltip (Knob& k)
     : knob (k),
-      watchdog ([this] (juce::Point<float> pointer) {
-          if (! knob.isMouseButtonDown())
-              knob.hideTooltipUnlessHovered (pointer.roundToInt());
-      })
+      watchdog ([this] (juce::Point<float> pointer) { knob.watchTooltip (pointer); })
 {
     setWantsKeyboardFocus (false);
     setMouseCursor (juce::MouseCursor::IBeamCursor);

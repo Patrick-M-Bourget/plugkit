@@ -318,6 +318,12 @@ void Knob::hideTooltipUnlessHovered (juce::Point<int> screenPosition)
     hideTooltip();
 }
 
+void Knob::watchTooltip (juce::Point<float> pointer)
+{
+    if (! isMouseButtonDown())
+        hideTooltipUnlessHovered (pointer.roundToInt());
+}
+
 juce::Rectangle<float> Knob::faceArea() const
 {
     const float r = getFaceRadius();
