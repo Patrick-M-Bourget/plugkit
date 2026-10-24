@@ -42,6 +42,13 @@ TEST_CASE ("Staple's font is Manrope, with digits of equal width so numbers don'
     }
 }
 
+// The main curve's stroke, as HANDOFF.md §4 "Curves" gives it: a 2 px line over a 4 px halo, and an 8 px halo at half
+// alpha in place of a blur.
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainLine, 2.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainHalo, 4.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHalo, 8.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHaloAlpha, 0.5f));
+
 TEST_CASE ("Every icon the prototype uses parses to a path inside its grid")
 {
     for (int i = 0; i < staple::numIcons; ++i)

@@ -2,10 +2,11 @@
 
 // Copied from eq1's plugin/staple/Tokens.h (eq1 at dbb1127), without eq1's own tokens: the Band palette, the window's
 // size and its display's, Band panel's and Detection Range bar's layout (the window's padding and gap, the header's,
-// footer's and meter rail's sizes and the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, hoverCard
-// and curve namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit
-// has the two tokens plugkit-ui's Preset and A/B widgets read. Of the curve namespace, it has globalBypassScale, which
-// comp1 shares, kept in motion beside globalBypassFadeMs.
+// footer's and meter rail's sizes and the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost and
+// hoverCard namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit
+// has the two tokens plugkit-ui's Preset and A/B widgets read. Of the curve namespace, it has the main curve's stroke
+// (eq1's sum) and globalBypassScale, which comp1 shares, kept in motion beside globalBypassFadeMs; eq1's Band curves'
+// strokes and alphas stay eq1's.
 
 // Staple's design tokens: the values in docs/staple-handoff/tokens.json and HANDOFF.md's visual spec,
 // kept by hand. The only place in plugkit-ui a colour is written as a number. design-system/ beside this file
@@ -144,6 +145,14 @@ namespace popover
     constexpr int gapAbove = 10, gapBelow = 6;
     constexpr int edge = 1;
 } // namespace popover
+
+// The main curve on a display (HANDOFF.md §4 "Curves"): a line in curveMain over its halo in curveMainHalo, and a wider,
+// fainter halo in place of a blur; widths in px, the alpha 0 to 1. Copied from eq1's plugin/staple/Tokens.h, curve::sum,
+// sumHalo, sumOuterHalo and sumOuterHaloAlpha (eq1 at 33fee16).
+namespace curve
+{
+    constexpr float mainLine = 2.0f, mainHalo = 4.0f, mainOuterHalo = 8.0f, mainOuterHaloAlpha = 0.5f;
+} // namespace curve
 
 // Shadows: CSS blur radius and offset, as juce::DropShadow takes them.
 namespace shadow
