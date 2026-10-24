@@ -3,6 +3,7 @@
 // Copied from eq1's plugin/staple/TooltipWindow.h (eq1 at dbb1127), and the fade-out, which eq1 has too; listed in
 // eq1#231.
 
+#include "TipWatchdog.h"
 #include "controls/Tween.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -24,7 +25,10 @@ namespace staple
 // The moment the pointer moves off the control a tip is showing for (onto another component, or out of
 // the window), the tip hides and a picture of it fades out in its place over fadeOutMs, behind any tip
 // that shows next. JUCE only notices the pointer has gone on its next timer tick, and hides the tip
-// abruptly then; this hears of it from the pointer's events, which JUCE sends to every Tooltip window.
+// abruptly then; this hears of it from the pointer's events, which JUCE sends to every Tooltip window. When the OS
+// sends none (another window over the editor's under the pointer, or the host hiding the editor's window itself), its
+// TipWatchdog sees the pointer has gone within TipWatchdog::periodMs, and the tip fades out the same way. A control
+// the pointer isn't over, as the watchdog reads it, has no tip, so JUCE doesn't show it again meanwhile.
 // A click or a wheel turn hides a tip, and ends a fade, at once. The control it happened on then has no tip until
 // the pointer moves more than dismissalMovePx or onto another component, and JUCE's 500 ms in which it shows a tip
 // again at once have passed: the tip shows again only after a fresh 700 ms rest.
@@ -85,6 +89,8 @@ private:
         juce::uint32 time = 0;
         bool moved = false;
     } dismissed;
+    TipWatchdog watchdog { [this] (juce::Point<float> pointer) { watch (pointer); } };
+    void watch (juce::Point<float> pointer);
     bool placing = false;
     Fading fading;
     Tween fade { fadeOutMs, 0.0f };

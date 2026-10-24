@@ -67,6 +67,7 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Icons.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/LookAndFeel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/Painting.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/TipWatchdog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/TooltipWindow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/WindowBackground.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/staple/controls/EdgeSelector.cpp

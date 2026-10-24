@@ -3,9 +3,11 @@
 // Copied from eq1's tests/plugin/EditorHarness.h (eq1 at dbb1127), its screenshots folder named by the plugin's
 // PLUGKIT_HARNESS_VAR_PREFIX, and OpenEditor a template over the plugin's processor, without eq1's EQ display helpers,
 // which eq1's subclass of it keeps, firstParameterOutOfRange taking an infinity a range ends at as in range, and a
-// host's window on a fake peer (HostWindow), which a test sends the pointer through; listed in eq1#231.
+// host's window on a fake peer (HostWindow), which a test sends the pointer and wheel through, hides or covers as the
+// OS would, and which stands in for the OS's pointer; listed in eq1#231.
 
 #include "plugkit/ui/EditorTick.h"
+#include "plugkit/ui/staple/TipWatchdog.h"
 #include "plugkit/ui/staple/controls/Tween.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -244,7 +246,8 @@ inline void checkPopInStart (const juce::Component& component, juce::Rectangle<f
 
 // A window's peer the OS never sees: its hit-test is its bounds, so a pointer event lands where the test puts it
 // whatever else is on screen. A real window's peer asks the OS which window is frontmost at the point, and a test's
-// window is behind the terminal's. It never paints, and has focus.
+// window is behind the terminal's. It never paints, and has focus. A test stands in for the OS with visible (false:
+// the host hid the window itself, which JUCE doesn't hear of) and covered (where another window is over it).
 struct FakePeer final : juce::ComponentPeer
 {
     FakePeer (juce::Component& c, int flags) : ComponentPeer (c, flags), bounds (c.getBounds()) {}
@@ -264,7 +267,10 @@ struct FakePeer final : juce::ComponentPeer
     void setFullScreen (bool) override {}
     bool isFullScreen() const override { return false; }
     void setIcon (const juce::Image&) override {}
-    bool contains (juce::Point<int> p, bool) const override { return isShowing() && bounds.withZeroOrigin().contains (p); }
+    bool contains (juce::Point<int> p, bool) const override
+    {
+        return isShowing() && bounds.withZeroOrigin().contains (p) && ! covered.contains (p);
+    }
     OptionalBorderSize getFrameSizeIfPresent() const override { return {}; }
     juce::BorderSize<int> getFrameSize() const override { return {}; }
     bool setAlwaysOnTop (bool) override { return true; }
@@ -279,6 +285,8 @@ struct FakePeer final : juce::ComponentPeer
     void textInputRequired (juce::Point<int>, juce::TextInputTarget&) override {}
 
     juce::Rectangle<int> bounds;
+    // The part of the window another window is over, in the window's coordinates.
+    juce::Rectangle<int> covered;
     bool visible = false, minimised = false;
 };
 
@@ -315,8 +323,7 @@ struct HostWindow final : juce::Component
     // The pointer at at, in the window's coordinates, which may be outside it.
     void pointerAtWindow (juce::Point<float> at, juce::ModifierKeys mods = {})
     {
-        lastPointer = at;
-        lastMods = mods;
+        sent (at, mods);
         getPeer()->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, at, mods, juce::MouseInputSource::defaultPressure,
                                      juce::MouseInputSource::defaultOrientation, juce::Time::currentTimeMillis());
     }
@@ -324,8 +331,7 @@ struct HostWindow final : juce::Component
     // A wheel turn with the pointer at at, in c's coordinates.
     void wheelAt (juce::Component& c, juce::Point<float> at)
     {
-        lastPointer = getLocalPoint (&c, at);
-        lastMods = {};
+        sent (getLocalPoint (&c, at), {});
         juce::MouseWheelDetails wheel {};
         wheel.deltaY = 0.1f;
         getPeer()->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, lastPointer, juce::Time::currentTimeMillis(), wheel);
@@ -335,9 +341,24 @@ struct HostWindow final : juce::Component
     // that one comes through the message loop, which the harness doesn't run.
     void pointerAgain() { pointerAtWindow (lastPointer, lastMods); }
 
+    // The pointer moved to at, in c's coordinates, as the OS has it, with no event: as when another window over this
+    // one takes the pointer's events. A tip's watchdog (staple::TipWatchdog) reads the pointer from here, where every
+    // other call above puts it too, rather than from the machine's real mouse.
+    void pointerUnseen (juce::Component& c, juce::Point<float> at) { osPointer = getLocalPoint (&c, at); }
+
+    FakePeer& peer() { return dynamic_cast<FakePeer&> (*getPeer()); }
+
 private:
     juce::Point<float> lastPointer;
     juce::ModifierKeys lastMods;
+    juce::Point<float> osPointer;
+    staple::TipWatchdog::ScopedPointer pointerStandIn { [this] { return localPointToGlobal (osPointer); } };
+
+    void sent (juce::Point<float> at, juce::ModifierKeys mods)
+    {
+        lastPointer = osPointer = at;
+        lastMods = mods;
+    }
 };
 
 // The editor in a window of its own, as a host shows it, so it takes keyboard focus. Keys go through

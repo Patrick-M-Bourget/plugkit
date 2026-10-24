@@ -5,6 +5,7 @@
 
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/staple/LookAndFeel.h"
+#include "plugkit/ui/staple/TipWatchdog.h"
 #include "plugkit/ui/staple/TooltipWindow.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -72,6 +73,22 @@ struct Hosted
     juce::uint32 restOn (juce::Component& control) { return restOn (control, centreOf (control)); }
 };
 
+// Counts the times a component is shown while it lives.
+struct ShowCount final : juce::ComponentListener
+{
+    explicit ShowCount (juce::Component& c) : component (c) { component.addComponentListener (this); }
+    ~ShowCount() override { component.removeComponentListener (this); }
+
+    void componentVisibilityChanged (juce::Component& c) override
+    {
+        if (c.isVisible())
+            ++count;
+    }
+
+    juce::Component& component;
+    int count = 0;
+};
+
 } // namespace
 
 TEST_CASE ("A Tooltip appears after the pointer rests 700 ms on its control, below it")
@@ -105,4 +122,37 @@ TEST_CASE ("After a wheel turn or a click, a Tooltip stays hidden until the poin
     CHECK_FALSE (h.tips.isVisible());
 
     CHECK (h.restOn (h.gain, at.translated (6.0f, 0.0f)) >= 700);
+}
+
+TEST_CASE ("A Tooltip stays while the pointer rests on its control")
+{
+    Hosted h;
+    h.restOn (h.gain);
+    harness::settle (4 * staple::TipWatchdog::periodMs);
+    CHECK (h.tips.isVisible());
+}
+
+// The OS sends the window no event in each case, so JUCE still has the pointer on the control: only the watchdog,
+// which reads the pointer from the OS, sees it has gone.
+TEST_CASE ("A Tooltip fades out within one watchdog period once the OS has the pointer off its control, and stays hidden")
+{
+    Hosted h;
+    h.restOn (h.gain);
+    const std::string where = GENERATE ("off the control", "over another window", "in a window the host hid");
+    INFO ("The pointer is " << where);
+    if (where == "off the control")
+        h.window->pointerUnseen (h.bare, Hosted::centreOf (h.bare));
+    else if (where == "over another window")
+        h.window->peer().covered = h.window->getLocalArea (&h.gain, h.gain.getLocalBounds());
+    else
+        h.window->peer().visible = false;
+
+    harness::settle (staple::TipWatchdog::periodMs);
+    CHECK_FALSE (h.tips.isVisible());
+    CHECK (h.tips.fadingOut().isVisible());
+    CHECK (harness::settleUntil ([&] { return ! h.tips.fadingOut().isVisible(); }));
+    // JUCE's timer, which still has the pointer on the control, doesn't show it again, not even for one watchdog period.
+    const ShowCount shows (h.tips);
+    harness::settle (1500);
+    CHECK (shows.count == 0);
 }

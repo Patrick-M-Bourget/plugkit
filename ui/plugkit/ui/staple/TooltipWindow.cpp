@@ -34,7 +34,7 @@ TooltipWindow::TooltipWindow (juce::Component* parent, TipSource tipFor) : juce:
 juce::String TooltipWindow::getTipFor (juce::Component& c)
 {
     control = &c;
-    if (isDismissed (c))
+    if (isDismissed (c) || ! TipWatchdog::isPointerOver (c, TipWatchdog::pointer()))
         return {};
     return tipSource != nullptr ? tipSource (c) : juce::TooltipWindow::getTipFor (c);
 }
@@ -65,7 +65,20 @@ void TooltipWindow::visibilityChanged()
 {
     // JUCE asks for a control's tip just before showing it.
     if (isVisible())
+    {
         showingFor = control;
+        watchdog.start();
+    }
+    else
+    {
+        watchdog.stop();
+    }
+}
+
+void TooltipWindow::watch (juce::Point<float> pointer)
+{
+    if (isVisible() && (showingFor == nullptr || ! TipWatchdog::isPointerOver (*showingFor, pointer)))
+        fadeOut();
 }
 
 void TooltipWindow::mouseMove (const juce::MouseEvent& e)
