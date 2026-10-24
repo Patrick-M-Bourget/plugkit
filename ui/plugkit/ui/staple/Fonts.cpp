@@ -37,6 +37,8 @@ juce::Font font (float size, Weight weight)
 
 juce::Font sectionTitleFont() { return font (tokens::size::fs3, Weight::bold).withExtraKerningFactor (0.08f); }
 
+juce::Font labelFont() { return font (tokens::size::fs2, Weight::medium).withExtraKerningFactor (0.08f); }
+
 int textWidth (const juce::Font& font, const juce::String& text)
 {
     return static_cast<int> (std::ceil (juce::GlyphArrangement::getStringWidth (font, text)));
