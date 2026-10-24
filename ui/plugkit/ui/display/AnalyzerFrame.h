@@ -6,14 +6,19 @@
 #include "../AnalyzerSettings.h"
 #include "../AnalyzerSpectrum.h"
 
+#include <functional>
+#include <optional>
+
 namespace plugkit::ui::display
 {
 
-// The Analyzer's spectra this frame.
+// The Analyzer's spectra this frame. A display with no Sidechain spectrum leaves sidechain out, and nothing is drawn
+// for it whatever settings.showSidechain says; one with a Sidechain passes it as eq1 does, `.sidechain = spectrum`.
 struct AnalyzerFrame
 {
     const AnalyzerSettings& settings;
-    const AnalyzerSpectrum &preEq, &postEq, &sidechain;
+    const AnalyzerSpectrum &preEq, &postEq;
+    std::optional<std::reference_wrapper<const AnalyzerSpectrum>> sidechain {};
     const AnalyzerSpectrum* held = nullptr; // the spectrum Peak Hold is drawn for, if any
 };
 

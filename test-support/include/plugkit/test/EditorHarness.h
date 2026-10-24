@@ -270,6 +270,10 @@ struct OpenEditor
 
     // The editor's one tick (EditorTick), which its components follow the processor on.
     plugkit::ui::EditorTick& editorTick() { return dynamic_cast<plugkit::ui::EditorTick::Host&> (*editor).editorTick(); }
+    // Makes every tick hand its Clients exactly seconds, whatever real time passed, so a test of a tick-driven value
+    // (a meter's fall, the Analyzer's smoothing, a fade) against the audio it played doesn't depend on the runner's
+    // speed; std::nullopt hands over real time again (EditorTick::fixTickSeconds).
+    void fixTickSeconds (std::optional<double> seconds) { editorTick().fixTickSeconds (seconds); }
 
     // The host parameter with this ID; the test fails without one.
     juce::RangedAudioParameter& parameter (const juce::String& id)
