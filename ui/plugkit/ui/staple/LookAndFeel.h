@@ -36,6 +36,8 @@ public:
                                bool highlighted, bool down) override;
     void drawButtonText (juce::Graphics& g, juce::TextButton& button, bool highlighted, bool down) override;
     void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down) override;
+    // The width a stock toggle needs to draw text whole: its box, the gap after it (tokens::toggle) and the label.
+    static int idealToggleWidth (const juce::String& text);
 
     void drawComboBox (juce::Graphics& g, int width, int height, bool down, int buttonX, int buttonY, int buttonW, int buttonH,
                        juce::ComboBox& box) override;
