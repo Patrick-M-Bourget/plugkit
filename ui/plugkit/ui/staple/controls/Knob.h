@@ -112,6 +112,9 @@ private:
     // unless the knob is being dragged.
     void watchTooltip (juce::Point<float> pointer);
     void hideTooltip();
+    // Whether e is on the ring as JUCE found the knob under it: at the whole pixel nearest its position (hitTest), so
+    // the face and ring it reaches agree with the hit test at fractional positions (the UI Scale's).
+    bool isOnRingAsHit (const juce::MouseEvent& e) const;
     // The face's square, in the knob's coordinates.
     juce::Rectangle<float> faceArea() const;
     // The radius round the face's centre that the hit area reaches: the face's, or the ring's outer edge.
