@@ -79,10 +79,10 @@ void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const An
         g.setColour (colour::anLine);
         g.strokePath (line, juce::PathStrokeType (1.0f));
     }
-    if (analyzer.showSidechain)
+    if (analyzer.showSidechain && frame.sidechain.has_value())
     {
         g.setColour (colour::anScLine);
-        g.strokePath (spectrumLine (frame.sidechain), juce::PathStrokeType (1.0f));
+        g.strokePath (spectrumLine (frame.sidechain->get()), juce::PathStrokeType (1.0f));
     }
 }
 

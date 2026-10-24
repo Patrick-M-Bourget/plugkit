@@ -15,7 +15,7 @@ float spectrumYAt (const DisplayGeometry& geometry, const AnalyzerSettings& sett
 
 // The Analyzer, behind the curves: the main spectrum (post-EQ, or pre-EQ when only it is shown) with a
 // gradient fill and a line, Peak Hold a faint line, pre-EQ a faint line beside post-EQ, and the
-// Sidechain a line in its own tint.
+// Sidechain, when the frame has one, a line in its own tint.
 void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const AnalyzerFrame& frame);
 
 } // namespace plugkit::ui::display
