@@ -1,4 +1,5 @@
-// Copied from eq1's plugin/EditorTick.cpp (eq1 at dbb1127), in namespace plugkit::ui; listed in eq1#231.
+// Copied from eq1's plugin/EditorTick.cpp (eq1 at dbb1127), in namespace plugkit::ui, and fixTickSeconds, for tests;
+// listed in eq1#231.
 
 #include "EditorTick.h"
 

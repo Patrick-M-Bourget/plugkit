@@ -1,7 +1,7 @@
 #pragma once
 
 // Copied from eq1's plugin/display/AnalyzerLayer.h (eq1 at dbb1127), in namespace plugkit::ui::display, over
-// AnalyzerFrame.h rather than eq1's DisplayFrame.h.
+// AnalyzerFrame.h rather than eq1's DisplayFrame.h, and spectrumLine made public.
 
 #include "AnalyzerFrame.h"
 #include "DisplayGeometry.h"

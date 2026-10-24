@@ -1,5 +1,6 @@
 // Copied from eq1's tests/plugin/StapleControlsTest.cpp (eq1 at dbb1127), against plugkit's test processor: its
-// controls attach to its parameters, and a token colour stands in for a Band's; listed in eq1#231.
+// controls attach to its parameters, and a token colour stands in for a Band's, with cases on the Tooltip window's
+// fade-out, which eq1 has too; listed in eq1#231.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"

@@ -1,7 +1,7 @@
 // Copied from eq1's tests/plugin/DisplayLayersTest.cpp (eq1 at dbb1127), against plugkit::ui::display: its grid and
 // edge-fade cases, with eq1's narrow display width and fade distances passed in, which plugkit's layers take as
-// arguments, a case on paintGrid's overload for any GridLines, one on spectrumYAt and one on paintAnalyzer's optional
-// Sidechain. Its Band curve cases, on eq1's CurvesLayer, stay in eq1.
+// arguments, a case on paintGrid's overload for any GridLines, one on frequencyLabels, one on spectrumYAt, one on
+// spectrumLine and one on paintAnalyzer's optional Sidechain. Its Band curve cases, on eq1's CurvesLayer, stay in eq1.
 
 #include "plugkit/test/EditorHarness.h"
 #include "plugkit/ui/display/AnalyzerLayer.h"
