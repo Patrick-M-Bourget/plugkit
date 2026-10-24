@@ -141,12 +141,12 @@ focus_project() {
     } > "$repo/CMakeLists.txt"
 }
 
-# expect_built <what> <repo> <target...>: each target was built in the repo's build folder.
+# expect_built <what> <build folder> <target...>: each target was built in the folder.
 expect_built() {
-    local what=$1 repo=$2 target
+    local what=$1 dir=$2 target
     shift 2
     for target in "$@"; do
-        [ -f "$repo/build/built-$target" ] || { echo "FAIL: $what: $target wasn't built" >&2; failures=$((failures + 1)); }
+        [ -f "$dir/built-$target" ] || { echo "FAIL: $what: $target wasn't built" >&2; failures=$((failures + 1)); }
     done
 }
 
@@ -155,18 +155,113 @@ focus_project "$repo" demo_engine_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
     "focus configures a missing build folder, then builds the default test targets and runs only the matching tests" \
     "$repo" focus Tooltip
-expect_built "focus builds <name>_engine_tests and <name>_plugin_tests by default" "$repo" demo_engine_tests demo_plugin_tests
+expect_built "focus builds <name>_engine_tests and <name>_plugin_tests by default" "$repo/build" demo_engine_tests demo_plugin_tests
 
 repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_plugin_tests"')
 focus_project "$repo" demo_dsp_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" "focus builds the TEST_TARGETS the config names" \
     "$repo" focus Tooltip
-expect_built "focus builds every TEST_TARGETS target" "$repo" demo_dsp_tests demo_plugin_tests
+expect_built "focus builds every TEST_TARGETS target" "$repo/build" demo_dsp_tests demo_plugin_tests
 
 repo=$(plugin "${base[@]}")
 focus_project "$repo" demo_engine_tests demo_plugin_tests
 FETCHCONTENT_BASE_DIR=$repo/.deps expect fail "No tests were found" "focus with a regex matching no test fails" \
     "$repo" focus Nothing
+
+# asan, on a stand-in macOS (uname) whose AddressSanitizer starts (a c++ whose programs exit at once), so it runs
+# anywhere and quickly: focus's project without its failing test, plus a target that isn't a test, which must stay
+# unbuilt.
+fake_mac() {
+    local bin=$1/fake-bin
+    mkdir -p "$bin"
+    printf '#!/usr/bin/env bash\necho Darwin\n' > "$bin/uname"
+    printf '#!/usr/bin/env bash\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\n%s\nchmod +x "$out"\n' \
+        "printf '#!/bin/sh\\nexit 0\\n' > \"\$out\"" > "$bin/c++"
+    chmod +x "$bin/uname" "$bin/c++"
+    printf '%s\n' "$bin"
+}
+
+# expect_unbuilt <what> <build folder> <target...>: no target was built in the folder.
+expect_unbuilt() {
+    local what=$1 dir=$2 target
+    shift 2
+    for target in "$@"; do
+        [ ! -f "$dir/built-$target" ] || { echo "FAIL: $what: $target was built" >&2; failures=$((failures + 1)); }
+    done
+}
+
+repo=$(plugin "${base[@]}")
+focus_project "$repo" demo_engine_tests demo_plugin_tests demo_tool
+sed -i.bak /Other.fails/d "$repo/CMakeLists.txt" && rm "$repo/CMakeLists.txt.bak"
+PATH=$(fake_mac "$repo"):$PATH FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
+    "asan builds the default test targets and runs the tests" "$repo" asan
+expect_built "asan builds <name>_engine_tests and <name>_plugin_tests by default" "$repo/build-asan" demo_engine_tests demo_plugin_tests
+expect_unbuilt "asan builds only the test targets" "$repo/build-asan" demo_tool
+
+repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_plugin_tests"')
+focus_project "$repo" demo_dsp_tests demo_plugin_tests demo_tool
+sed -i.bak /Other.fails/d "$repo/CMakeLists.txt" && rm "$repo/CMakeLists.txt.bak"
+PATH=$(fake_mac "$repo"):$PATH FETCHCONTENT_BASE_DIR=$repo/.deps expect pass "100% tests passed" \
+    "asan builds the TEST_TARGETS the config names" "$repo" asan
+expect_built "asan builds every TEST_TARGETS target" "$repo/build-asan" demo_dsp_tests demo_plugin_tests
+expect_unbuilt "asan builds only the TEST_TARGETS" "$repo/build-asan" demo_tool
+
+# screens and paint, in a configured scratch project: each test target a stand-in executable holding tests with the
+# given tags (<target>:<tag,...>), which lists the tests a tag matches as Catch2 does and records each run, with its
+# arguments and the screens folder, in ran-<target>.
+tagged_project() {
+    local repo=$1 spec target
+    shift
+    mkdir -p "$repo/build/tests"
+    for spec in "$@"; do
+        target=${spec%%:*}
+        printf '#!/usr/bin/env bash\ntags=%q\n' "${spec#*:}" > "$repo/build/tests/$target"
+        cat >> "$repo/build/tests/$target" << 'EOF'
+tag=${@: -1}
+if [ "$1" = --list-tests ]; then
+    case ",$tags," in *",$tag,"*) echo "A test tagged $tag" ;; esac
+else
+    echo "$* ${DEMO_SCREENS:-}" > "${0%/*}/ran-${0##*/}"
+fi
+EOF
+        chmod +x "$repo/build/tests/$target"
+    done
+    focus_project "$repo" "${@%%:*}"
+    cmake -S "$repo" -B "$repo/build" > /dev/null
+}
+
+# expect_ran <what> <repo> <target> <text>: the stand-in for target ran, its record holding text.
+expect_ran() {
+    grep -qF -- "$4" "$2/build/tests/ran-$3" 2> /dev/null || {
+        echo "FAIL: $1: $3 didn't run with '$4'" >&2
+        failures=$((failures + 1))
+    }
+}
+
+# expect_not_ran <what> <repo> <target>: the stand-in for target never ran.
+expect_not_ran() {
+    [ ! -f "$2/build/tests/ran-$3" ] || { echo "FAIL: $1: $3 ran" >&2; failures=$((failures + 1)); }
+}
+
+repo=$(plugin "${base[@]}")
+tagged_project "$repo" demo_engine_tests:'[response]' demo_plugin_tests:'[.screens],[paint]'
+PATH=$(fake_mac "$repo"):$PATH expect pass "" "screens runs the default test targets' screens tests" "$repo" screens "$repo/shots"
+expect_ran "screens renders from the test target holding [.screens]" "$repo" demo_plugin_tests "[.screens] $repo/shots"
+expect_not_ran "screens leaves a test target without [.screens] tests" "$repo" demo_engine_tests
+
+repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_ui_tests"')
+tagged_project "$repo" demo_dsp_tests:'[response]' demo_ui_tests:'[.screens],[paint]'
+PATH=$(fake_mac "$repo"):$PATH expect pass "" "screens runs the TEST_TARGETS' screens tests" "$repo" screens "$repo/shots"
+expect_built "screens builds every TEST_TARGETS target" "$repo/build" demo_dsp_tests demo_ui_tests
+expect_ran "screens renders from the TEST_TARGETS target holding [.screens]" "$repo" demo_ui_tests "[.screens] $repo/shots"
+expect_not_ran "screens leaves a TEST_TARGETS target without [.screens] tests" "$repo" demo_dsp_tests
+GITHUB_ACTIONS=1 PATH=$(fake_mac "$repo"):$PATH expect pass "" "paint runs the TEST_TARGETS' paint test" "$repo" paint
+expect_ran "paint times the TEST_TARGETS target holding [paint]" "$repo" demo_ui_tests "[paint]"
+
+repo=$(plugin "${base[@]}" 'TEST_TARGETS="demo_dsp_tests demo_ui_tests"')
+tagged_project "$repo" demo_dsp_tests:'[response]' demo_ui_tests:'[paint]'
+PATH=$(fake_mac "$repo"):$PATH expect fail "No test in demo_dsp_tests demo_ui_tests matches [.screens]" \
+    "screens with no [.screens] test in any test target fails, saying so" "$repo" screens "$repo/shots"
 
 repo=$(plugin "${base[@]}")
 expect fail "SAMPLE_RATES" "a stage needing a setting the config leaves out says which" "$repo" validate
