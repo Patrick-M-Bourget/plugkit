@@ -360,3 +360,51 @@ TEST_CASE ("The Sidechain spectrum is optional: shown, it is drawn when given an
         CHECK (drawnPixels (image) == 0);
     }
 }
+
+TEST_CASE ("A spectrum's line runs across the display in one path, a point every 2 px, each on the Analyzer's scale")
+{
+    const DisplayGeometry geometry { .width = 1134, .height = 612 };
+    plugkit::ui::AnalyzerSettings settings;
+    settings.rangeDb = 60;
+    settings.tiltDbPerOctave = 0.0;
+    plugkit::ui::AnalyzerSpectrum spectrum;
+    spectrum.prepare (48000.0, plugkit::ui::AnalyzerResolution::high);
+
+    const auto pointsOf = [] (const juce::Path& line) {
+        std::vector<juce::Point<float>> points;
+        int subPaths = 0;
+        for (juce::Path::Iterator it (line); it.next();)
+        {
+            if (it.elementType == juce::Path::Iterator::startNewSubPath)
+                ++subPaths;
+            points.emplace_back (it.x1, it.y1);
+        }
+        CHECK (subPaths == 1);
+        return points;
+    };
+
+    // Silent: flat along the bottom, from x = 0 to the right edge, 2 px apart.
+    const auto silent = pointsOf (plugkit::ui::display::spectrumLine (geometry, settings, spectrum));
+    REQUIRE (silent.size() == 568);
+    for (size_t i = 0; i < silent.size(); ++i)
+    {
+        CHECK_THAT (silent[i].x, WithinAbs (2.0 * static_cast<double> (i), 1.0e-3));
+        CHECK_THAT (silent[i].y, WithinAbs (612.0, 1.0e-3));
+    }
+
+    // A full-scale sine: every point where spectrumYAt puts it, and the line near the top over its Frequency (within
+    // 2 dB, 20 px: the 2 px steps fall either side of its peak).
+    const double frequency = 128.0 * 48000.0 / plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high);
+    std::vector<float> block (static_cast<size_t> (plugkit::ui::AnalyzerSpectrum::fftSize (48000.0, plugkit::ui::AnalyzerResolution::high)));
+    for (size_t i = 0; i < block.size(); ++i)
+        block[i] = static_cast<float> (std::sin (2.0 * std::numbers::pi * frequency * static_cast<double> (i) / 48000.0));
+    spectrum.push (block.data(), static_cast<int> (block.size()));
+    spectrum.update (10.0, plugkit::ui::AnalyzerSpeed::veryFast);
+    const auto sine = pointsOf (plugkit::ui::display::spectrumLine (geometry, settings, spectrum));
+    REQUIRE (sine.size() == 568);
+    for (const auto& point : sine)
+        CHECK_THAT (point.y, WithinAbs (plugkit::ui::display::spectrumYAt (geometry, settings, spectrum, point.x), 1.0e-3));
+    const auto top = std::min_element (sine.begin(), sine.end(), [] (auto a, auto b) { return a.y < b.y; });
+    CHECK_THAT (top->y, WithinAbs (0.0, 20.0));
+    CHECK_THAT (top->x, WithinAbs (geometry.xOf (frequency), 2.0));
+}

@@ -15,22 +15,25 @@ float spectrumYAt (const DisplayGeometry& geometry, const AnalyzerSettings& sett
     return static_cast<float> (juce::jlimit (0.0, 1.0, -level / settings.rangeDb) * geometry.height);
 }
 
+juce::Path spectrumLine (const DisplayGeometry& geometry, const AnalyzerSettings& settings, const AnalyzerSpectrum& spectrum)
+{
+    const auto width = static_cast<float> (geometry.width);
+    juce::Path line;
+    for (float x = 0.0f; x <= width; x += DisplayGeometry::pixelStep)
+    {
+        const juce::Point<float> point { x, spectrumYAt (geometry, settings, spectrum, x) };
+        if (juce::exactlyEqual (x, 0.0f))
+            line.startNewSubPath (point);
+        else
+            line.lineTo (point);
+    }
+    return line;
+}
+
 void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const AnalyzerFrame& frame)
 {
     const auto& analyzer = frame.settings;
     const auto width = static_cast<float> (geometry.width), height = static_cast<float> (geometry.height);
-    const auto spectrumLine = [&] (const AnalyzerSpectrum& spectrum) {
-        juce::Path line;
-        for (float x = 0.0f; x <= width; x += DisplayGeometry::pixelStep)
-        {
-            const juce::Point<float> point { x, spectrumYAt (geometry, analyzer, spectrum, x) };
-            if (juce::exactlyEqual (x, 0.0f))
-                line.startNewSubPath (point);
-            else
-                line.lineTo (point);
-        }
-        return line;
-    };
     const auto areaUnder = [&] (juce::Path line) {
         line.lineTo (line.getCurrentPosition().withY (height));
         line.lineTo (0.0f, height);
@@ -66,7 +69,7 @@ void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const An
     const AnalyzerSpectrum* main = analyzer.showPostEq ? &frame.postEq : analyzer.showPreEq ? &frame.preEq : nullptr;
     if (main != nullptr)
     {
-        const auto line = spectrumLine (*main);
+        const auto line = spectrumLine (geometry, analyzer, *main);
         juce::ColourGradient gradient (colour::anFillTop, 0.0f, 0.0f, colour::anFillMid.withAlpha (0.0f), 0.0f, height, false);
         gradient.addColour (0.6, colour::anFillMid);
         g.setGradientFill (gradient);
@@ -74,7 +77,7 @@ void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const An
         if (analyzer.showPostEq && analyzer.showPreEq)
         {
             g.setColour (colour::anPre);
-            g.strokePath (spectrumLine (frame.preEq), juce::PathStrokeType (1.0f));
+            g.strokePath (spectrumLine (geometry, analyzer, frame.preEq), juce::PathStrokeType (1.0f));
         }
         g.setColour (colour::anLine);
         g.strokePath (line, juce::PathStrokeType (1.0f));
@@ -82,7 +85,7 @@ void paintAnalyzer (juce::Graphics& g, const DisplayGeometry& geometry, const An
     if (analyzer.showSidechain && frame.sidechain.has_value())
     {
         g.setColour (colour::anScLine);
-        g.strokePath (spectrumLine (frame.sidechain->get()), juce::PathStrokeType (1.0f));
+        g.strokePath (spectrumLine (geometry, analyzer, frame.sidechain->get()), juce::PathStrokeType (1.0f));
     }
 }
 

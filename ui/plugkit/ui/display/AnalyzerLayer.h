@@ -13,6 +13,10 @@ namespace plugkit::ui::display
 // Analyzer's range below.
 float spectrumYAt (const DisplayGeometry& geometry, const AnalyzerSettings& settings, const AnalyzerSpectrum& spectrum, float x);
 
+// A spectrum's line across the display: one path through spectrumYAt, a point every DisplayGeometry::pixelStep
+// from x = 0 to the right edge.
+juce::Path spectrumLine (const DisplayGeometry& geometry, const AnalyzerSettings& settings, const AnalyzerSpectrum& spectrum);
+
 // The Analyzer, behind the curves: the main spectrum (post-EQ, or pre-EQ when only it is shown) with a
 // gradient fill and a line, Peak Hold a faint line, pre-EQ a faint line beside post-EQ, and the
 // Sidechain, when the frame has one, a line in its own tint.
