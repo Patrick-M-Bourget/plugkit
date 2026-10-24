@@ -1,7 +1,7 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/controls/KnobTooltip.h (eq1 at dbb1127), and its watchdog (TipWatchdog), which eq1
-// takes from here; listed in eq1#231.
+// Copied from eq1's plugin/staple/controls/KnobTooltip.h (eq1 at dbb1127), and its watchdog (TipWatchdog) and its
+// typing into a ring's content (Knob::RingHandler::ringAcceptsTypedText), which eq1 takes from here; listed in eq1#231.
 
 #include "../TipWatchdog.h"
 
@@ -19,10 +19,13 @@ class Knob;
 // knob's label from the label's top (Knob::setLabel), or above the face where there is no room below,
 // in the knob's overlay layer (Overlay.h), and fades in over dur1. It is never a focus stop. A double-click
 // on it opens a field for typing a value: Enter commits it as one undo step, Esc or leaving the field
-// cancels. The Knob owns it and shows and hides it. It stays while the pointer crosses from the knob's face onto it,
+// cancels. While it shows a ring's content (Knob::isTooltipOnRing) the field types into the ring, if the ring
+// takes typing (RingHandler::ringAcceptsTypedText), and the double-click does nothing if it doesn't. The Knob owns it
+// and shows and hides it. It stays while the pointer crosses from the knob's face onto it,
 // through the knob's margin or over its label (Knob::isOnWayToReadout). While it shows, its TipWatchdog hides it once
-// the OS has the pointer off the knob, the Readout and the way between them, unless the knob is being dragged or a value
-// typed, as the knob does when the pointer leaves it.
+// the OS has the pointer off the knob, the Readout and the way between them, or resting on that way
+// (Knob::restOnWayChecks), unless the knob is being dragged or a value typed, as the knob does when the pointer leaves
+// it.
 class KnobTooltip final : public juce::Component
 {
 public:
@@ -32,7 +35,7 @@ public:
     juce::String titleText() const { return title; }
     juce::String valueText() const { return value; }
 
-    // Reads the knob's title and value again, and places itself by the knob.
+    // Reads the knob's title and value again, unless a value is being typed, and places itself by the knob.
     void refresh();
     void appear();
     void disappear();
@@ -54,6 +57,8 @@ private:
     TipWatchdog watchdog;
     juce::String title, value;
     std::unique_ptr<juce::TextEditor> editor;
+    // Whether the open field types into the knob's ring (Knob::RingHandler::ringCommitTypedText) rather than the knob.
+    bool typingIntoRing = false;
 };
 
 } // namespace staple

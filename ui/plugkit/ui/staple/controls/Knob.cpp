@@ -1,7 +1,8 @@
 // Copied from eq1's plugin/staple/controls/Knob.cpp (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and its
 // Readout kept only while the knob shows and the pointer is over its face (or ring), not its shadow margin, as
-// TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout), keeping on that way
-// the content it had as the pointer left the face or ring, and hiding another knob's as it shows; listed in eq1#231.
+// TipWatchdog::isPointerOver checks it, or on the Readout or the way between them (wayToReadout) while the pointer
+// crosses it, not rests there (Knob::restOnWayChecks), keeping on that way the content it had as the pointer left the
+// face or ring, and hiding another knob's as it shows; listed in eq1#231.
 
 #include "Knob.h"
 
@@ -366,16 +367,36 @@ void Knob::hideTooltipUnlessHovered (juce::Point<int> screenPosition)
     // usually still inside the knob's bounds, and the knob hears nothing more. A hidden knob or parent sends one inside
     // them too. On the way to the Readout, in the margin or over the label, the pointer is crossing to the Readout.
     const auto pointer = screenPosition.toFloat();
-    if ((isEnabled() && (TipWatchdog::isPointerOver (*this, pointer) || isOnWayToReadout (pointer)))
-        || TipWatchdog::isPointerOver (*tooltip, pointer))
+    if (isOverKnobOrReadout (pointer) || (isEnabled() && isOnWayToReadout (pointer)))
         return;
     hideTooltip();
 }
 
+bool Knob::isOverKnobOrReadout (juce::Point<float> screenPosition)
+{
+    return (isEnabled() && TipWatchdog::isPointerOver (*this, screenPosition))
+           || (tooltip != nullptr && TipWatchdog::isPointerOver (*tooltip, screenPosition));
+}
+
 void Knob::watchTooltip (juce::Point<float> pointer)
 {
-    if (! isMouseButtonDown())
-        hideTooltipUnlessHovered (pointer.roundToInt());
+    if (isMouseButtonDown() || tooltip == nullptr || tooltip->isEditing())
+    {
+        wayRestAt.reset();
+        return;
+    }
+    // The way keeps the Readout while the pointer crosses it: once the pointer rests there, it isn't crossing.
+    const auto at = pointer.roundToInt();
+    if (! isOverKnobOrReadout (at.toFloat()) && isEnabled() && isOnWayToReadout (at.toFloat()))
+    {
+        wayRestChecks = wayRestAt == at ? wayRestChecks + 1 : 0;
+        wayRestAt = at;
+        if (wayRestChecks >= restOnWayChecks)
+            hideTooltip();
+        return;
+    }
+    wayRestAt.reset();
+    hideTooltipUnlessHovered (at);
 }
 
 juce::Rectangle<float> Knob::faceArea() const
@@ -397,6 +418,7 @@ bool Knob::isOnWayToReadout (juce::Point<float> screenPosition)
 
 void Knob::hideTooltip()
 {
+    wayRestAt.reset();
     if (tooltip != nullptr)
         tooltip->disappear();
 }
