@@ -2,7 +2,7 @@
 
 // Copied from eq1's plugin/display/GridLayer.h (eq1 at dbb1127), in namespace plugkit::ui::display, the narrow
 // display's width read from DisplayGeometry::narrowWidth rather than eq1's layout token, paintGrid's overload for
-// any GridLines, and Label's == kept from warning on its float, as AnalyzerSettings' is.
+// any GridLines, frequencyLabels, and Label's == kept from warning on its float, as AnalyzerSettings' is.
 
 #include "../AnalyzerSettings.h"
 #include "DisplayGeometry.h"

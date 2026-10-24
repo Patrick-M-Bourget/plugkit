@@ -1,6 +1,7 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/TooltipWindow.h (eq1 at dbb1127); listed in eq1#231.
+// Copied from eq1's plugin/staple/TooltipWindow.h (eq1 at dbb1127), and the fade-out, which eq1 has too; listed in
+// eq1#231.
 
 #include "controls/Tween.h"
 

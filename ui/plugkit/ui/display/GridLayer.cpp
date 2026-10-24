@@ -1,6 +1,6 @@
 // Copied from eq1's plugin/display/GridLayer.cpp (eq1 at dbb1127), in namespace plugkit::ui::display, the narrow
-// display's width read from DisplayGeometry::narrowWidth rather than eq1's layout token, and paintGrid's overload for
-// any GridLines.
+// display's width read from DisplayGeometry::narrowWidth rather than eq1's layout token, paintGrid's overload for any
+// GridLines, and frequencyLabels.
 
 #include "GridLayer.h"
 

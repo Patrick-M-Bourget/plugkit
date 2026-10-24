@@ -1,7 +1,8 @@
 #pragma once
 
 // Copied from eq1's plugin/display/DisplayFrame.h (eq1 at dbb1127), in namespace plugkit::ui::display: its
-// AnalyzerFrame only, in a header of its own. The EQ display's DisplayFrame, sameBand and bandColour stay in eq1.
+// AnalyzerFrame only, in a header of its own, its Sidechain spectrum optional. The EQ display's DisplayFrame, sameBand
+// and bandColour stay in eq1.
 
 #include "../AnalyzerSettings.h"
 #include "../AnalyzerSpectrum.h"

@@ -1,6 +1,7 @@
 #pragma once
 
-// Copied from eq1's plugin/EditorTick.h (eq1 at dbb1127), in namespace plugkit::ui; listed in eq1#231.
+// Copied from eq1's plugin/EditorTick.h (eq1 at dbb1127), in namespace plugkit::ui, and fixTickSeconds, for tests;
+// listed in eq1#231.
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
