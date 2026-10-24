@@ -1,7 +1,8 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/TooltipWindow.h (eq1 at dbb1127), and the fade-out, which eq1 has too; listed in
-// eq1#231.
+// Copied from eq1's plugin/staple/TooltipWindow.h (eq1 at dbb1127), and the fade-out, which eq1 has too, and the tip
+// source, the dismissal after a click or wheel turn and the watchdog (TipWatchdog), which eq1 takes from here; listed
+// in eq1#231.
 
 #include "TipWatchdog.h"
 #include "controls/Tween.h"
