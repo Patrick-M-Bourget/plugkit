@@ -120,6 +120,22 @@ juce::Point<float> marginBeside (staple::Knob& knob)
 // A point right of knob, outside its bounds.
 juce::Point<float> rightOf (staple::Knob& knob) { return { static_cast<float> (knob.getWidth()) + 10.0f, knob.getFaceCentre().y }; }
 
+// The unit step at degrees up from level, right, round a face's centre (screen y runs down).
+juce::Point<float> direction (float degrees)
+{
+    return { std::cos (juce::degreesToRadians (degrees)), -std::sin (juce::degreesToRadians (degrees)) };
+}
+
+// The radius of a ringed knob's hit area, the ring's outer edge: the Gain knob's 12 px lane at r + 10 (ringedGain),
+// derived here once from the tokens, as Knob::hitRadius is the knob's own.
+float ringOuterRadius (staple::Knob& knob)
+{
+    return knob.getFaceRadius() + staple::tokens::knob::ringOffset + staple::tokens::knob::ringLane / 2.0f;
+}
+
+// The radius of the middle of a ringed knob's lane.
+float ringMiddleRadius (staple::Knob& knob) { return knob.getFaceRadius() + staple::tokens::knob::ringOffset; }
+
 } // namespace
 
 TEST_CASE ("A Knob Readout hides when the pointer leaves the knob slowly, through the margin round its face")
@@ -325,28 +341,23 @@ enum class Kind
     ringed
 };
 
-const char* describe (Kind kind)
+// The knob of a kind in e, set up as the kind says, and what the kind is, for the test's INFO.
+struct KnobOfKind
 {
-    switch (kind)
-    {
-        case Kind::labelled: return "a knob with a label";
-        case Kind::small: return "a Small knob without one";
-        case Kind::readoutAbove: return "a Small knob with its Readout above it";
-        case Kind::ringed: return "a knob with a ring";
-    }
-    return "";
-}
+    staple::Knob& knob;
+    const char* description;
+};
 
-staple::Knob& knobOf (Hosted& e, Kind kind)
+KnobOfKind knobOf (Hosted& e, Kind kind)
 {
     switch (kind)
     {
-        case Kind::labelled: return e.labelFrequency();
-        case Kind::small: return e.small;
-        case Kind::readoutAbove: return e.atFoot;
-        case Kind::ringed: return e.ringedGain();
+        case Kind::labelled: return { e.labelFrequency(), "a knob with a label" };
+        case Kind::small: return { e.small, "a Small knob without one" };
+        case Kind::readoutAbove: return { e.atFoot, "a Small knob with its Readout above it" };
+        case Kind::ringed: return { e.ringedGain(), "a knob with a ring" };
     }
-    return e.small;
+    return { e.small, "" };
 }
 
 // Points on knob's hit area, on its half away from its Readout, off the face's centre with the Readout below (y flips
@@ -358,10 +369,9 @@ std::vector<juce::Point<float>> startsAwayFromReadout (staple::Knob& knob, Kind 
     const float r = knob.getFaceRadius();
     for (const float degrees : { 0.0f, 30.0f, 60.0f, 90.0f, 120.0f, 150.0f, 180.0f })
     {
-        const juce::Point<float> direction { std::cos (juce::degreesToRadians (degrees)), -std::sin (juce::degreesToRadians (degrees)) };
-        starts.push_back (direction * (0.9f * r));
+        starts.push_back (direction (degrees) * (0.9f * r));
         if (kind == Kind::ringed)
-            starts.push_back (direction * (r + staple::tokens::knob::ringOffset));
+            starts.push_back (direction (degrees) * ringMiddleRadius (knob));
     }
     if (kind == Kind::small || kind == Kind::readoutAbove)
         starts.push_back ({ -13.0f, -7.0f });
@@ -375,8 +385,9 @@ TEST_CASE ("A Knob Readout stays on every straight move from its knob's face or 
 {
     Hosted e;
     const auto kind = GENERATE (Kind::labelled, Kind::small, Kind::readoutAbove, Kind::ringed);
-    INFO (describe (kind));
-    auto& knob = knobOf (e, kind);
+    const auto of = knobOf (e, kind);
+    INFO (of.description);
+    auto& knob = of.knob;
     e.hover (knob);
     auto& readout = *knob.getKnobTooltip();
     const auto centre = e.window.getLocalPoint (&knob, knob.getFaceCentre());
@@ -414,8 +425,9 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on the way from its kno
 {
     Hosted e;
     const auto kind = GENERATE (Kind::small, Kind::readoutAbove, Kind::ringed);
-    INFO (describe (kind));
-    auto& knob = knobOf (e, kind);
+    const auto of = knobOf (e, kind);
+    INFO (of.description);
+    auto& knob = of.knob;
     e.hover (knob);
     auto& readout = *knob.getKnobTooltip();
     const auto centre = e.window.getLocalPoint (&knob, knob.getFaceCentre());
@@ -443,7 +455,7 @@ namespace
 // The radius of knob's hit area: its face's, or its ring's outer edge.
 float hitRadius (staple::Knob& knob, Kind kind)
 {
-    return knob.getFaceRadius() + (kind == Kind::ringed ? staple::tokens::knob::ringOffset + staple::tokens::knob::ringLane / 2.0f : 0.0f);
+    return kind == Kind::ringed ? ringOuterRadius (knob) : knob.getFaceRadius();
 }
 
 // A point just inside knob's hit area, on side (-1 left, 1 right), height px from its centre's level away from its
@@ -463,8 +475,9 @@ TEST_CASE ("A Knob Readout hides at once when the pointer leaves its knob sidewa
 {
     Hosted e;
     const auto kind = GENERATE (Kind::labelled, Kind::small, Kind::readoutAbove, Kind::ringed);
-    INFO (describe (kind));
-    auto& knob = knobOf (e, kind);
+    const auto of = knobOf (e, kind);
+    INFO (of.description);
+    auto& knob = of.knob;
     e.hover (knob);
     const auto side = GENERATE (-1.0f, 1.0f);
     const auto height = GENERATE (0.0f, 0.85f);
@@ -486,8 +499,9 @@ TEST_CASE ("A Knob Readout wider than its knob's face hides on its watchdog's ne
 {
     Hosted e;
     const auto kind = GENERATE (Kind::labelled, Kind::small, Kind::readoutAbove);
-    INFO (describe (kind));
-    auto& knob = knobOf (e, kind);
+    const auto of = knobOf (e, kind);
+    INFO (of.description);
+    auto& knob = of.knob;
     e.hover (knob);
     const auto side = GENERATE (-1.0f, 1.0f);
     INFO ((side < 0 ? "Left" : "Right"));
@@ -530,8 +544,7 @@ TEST_CASE ("A ring's own Knob Readout keeps its content on every straight move f
     int moves = 0;
     for (const float degrees : { 0.0f, 30.0f, 60.0f, 90.0f, 120.0f, 150.0f, 180.0f })
     {
-        const juce::Point<float> direction { std::cos (juce::degreesToRadians (degrees)), -std::sin (juce::degreesToRadians (degrees)) };
-        const auto from = centre + direction * (r + staple::tokens::knob::ringOffset);
+        const auto from = centre + direction (degrees) * ringMiddleRadius (knob);
         e.window.pointerAtWindow (from);
         REQUIRE (Hosted::underPointer() == &knob);
         REQUIRE (knob.isTooltipShown());
@@ -615,11 +628,10 @@ std::optional<juce::Point<float>> pointByEdge (Hosted& e, staple::Knob& knob, fl
     const auto centre = knob.getFaceCentre();
     for (float degrees = 30.0f; degrees < 40.0f; degrees += 0.25f)
     {
-        const juce::Point<float> direction { std::cos (juce::degreesToRadians (degrees)), -std::sin (juce::degreesToRadians (degrees)) };
         for (float off = 0.05f; off < 0.5f; off += 0.05f)
         {
             const float distance = edge == Edge::exactly ? radius : edge == Edge::justInside ? radius - off : radius + off;
-            const auto at = e.window.getLocalPoint (&knob, centre + direction * distance);
+            const auto at = e.window.getLocalPoint (&knob, centre + direction (degrees) * distance);
             const bool onItsPixel = knob.getLocalPoint (&e.window, at).roundToInt().toFloat().getDistanceFrom (centre) <= radius;
             if (edge != Edge::justOutsideOnItsPixel && edge != Edge::justOutsideOffItsPixel)
                 return at;
@@ -635,15 +647,14 @@ TEST_CASE ("A ring's own Knob Readout keeps its content as the pointer leaves th
 {
     Hosted e;
     auto& knob = e.wideRingedGain();
-    const float radius = knob.getFaceRadius() + staple::tokens::knob::ringOffset + staple::tokens::knob::ringLane / 2.0f;
+    const float radius = ringOuterRadius (knob);
     const auto edge = GENERATE (Edge::exactly, Edge::justInside, Edge::justOutsideOnItsPixel, Edge::justOutsideOffItsPixel);
     INFO ("The pointer lands " << describe (edge));
     const auto at = pointByEdge (e, knob, radius, edge);
     REQUIRE (at.has_value());
 
     // On the ring at 30 degrees, then out to the edge.
-    const juce::Point<float> direction { std::cos (juce::degreesToRadians (30.0f)), -std::sin (juce::degreesToRadians (30.0f)) };
-    e.window.pointerAt (knob, knob.getFaceCentre() + direction * (knob.getFaceRadius() + staple::tokens::knob::ringOffset));
+    e.window.pointerAt (knob, knob.getFaceCentre() + direction (30.0f) * ringMiddleRadius (knob));
     REQUIRE (knob.isTooltipShown());
     auto& readout = *knob.getKnobTooltip();
     REQUIRE (readout.titleText() == "Band 4 Dynamic Range");
@@ -665,7 +676,7 @@ TEST_CASE ("A press just outside a ring's outer edge, on its nearest whole pixel
 {
     Hosted e;
     auto& knob = e.wideRingedGain();
-    const float radius = knob.getFaceRadius() + staple::tokens::knob::ringOffset + staple::tokens::knob::ringLane / 2.0f;
+    const float radius = ringOuterRadius (knob);
     const auto at = pointByEdge (e, knob, radius, Edge::justOutsideOnItsPixel);
     REQUIRE (at.has_value());
     e.window.pointerAtWindow (*at);
