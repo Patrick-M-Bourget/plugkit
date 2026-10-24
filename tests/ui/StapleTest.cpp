@@ -42,6 +42,53 @@ TEST_CASE ("Staple's font is Manrope, with digits of equal width so numbers don'
     }
 }
 
+// The main curve's stroke, as HANDOFF.md §4 "Curves" gives it: a 2 px line over a 4 px halo, and an 8 px halo at half
+// alpha in place of a blur.
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainLine, 2.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainHalo, 4.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHalo, 8.0f));
+static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHaloAlpha, 0.5f));
+
+TEST_CASE ("The section title's font is the design system's section style: 12 px Manrope at 700, letter-spaced 0.08 em")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    const juce::SharedResourcePointer<staple::Typefaces> held; // the same bold typeface for both calls below
+    const auto font = staple::sectionTitleFont();
+    CHECK (font.getTypefacePtr() == staple::typeface (staple::Weight::bold));
+    CHECK_THAT (font.getHeightInPoints(), WithinAbs (12.0f, 1.0e-4));
+    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.08f, 1.0e-6));
+}
+
+TEST_CASE ("A toggle as wide as its ideal width draws its label whole, as a wider one does, and a pixel narrower squeezes it")
+{
+    juce::ScopedJuceInitialiser_GUI juce;
+    staple::LookAndFeel lookAndFeel;
+    const juce::String text = GENERATE ("Auto Release", "Lookahead", "M");
+    CAPTURE (text);
+    juce::ToggleButton toggle (text);
+    toggle.setLookAndFeel (&lookAndFeel);
+    const auto drawnAt = [&] (int width) {
+        toggle.setSize (width, 24);
+        return harness::paintImage (200, 24, [&] (juce::Graphics& g) { lookAndFeel.drawToggleButton (g, toggle, false, false); });
+    };
+    const int ideal = staple::LookAndFeel::idealToggleWidth (text);
+    REQUIRE (ideal < 200);
+    const auto wide = drawnAt (200);
+    const auto fitted = drawnAt (ideal);
+    const auto narrower = drawnAt (ideal - 1);
+    toggle.setLookAndFeel (nullptr);
+
+    const auto differs = [] (const juce::Image& a, const juce::Image& b) {
+        for (int y = 0; y < a.getHeight(); ++y)
+            for (int x = 0; x < a.getWidth(); ++x)
+                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+                    return true;
+        return false;
+    };
+    CHECK_FALSE (differs (fitted, wide));
+    CHECK (differs (narrower, wide));
+}
+
 TEST_CASE ("Every icon the prototype uses parses to a path inside its grid")
 {
     for (int i = 0; i < staple::numIcons; ++i)

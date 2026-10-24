@@ -16,6 +16,7 @@ namespace staple
 namespace colour = tokens::colour;
 namespace size = tokens::size;
 namespace motion = tokens::motion;
+namespace toggle = tokens::toggle;
 
 namespace
 {
@@ -36,6 +37,10 @@ Weight weightOf (const juce::Font& font)
         return Weight::medium;
     return Weight::regular;
 }
+
+// A stock toggle's label: its font, and where it starts, after the box and the gap.
+juce::Font toggleLabelFont() { return font (size::fs3); }
+int toggleLabelLeft() { return juce::roundToInt (toggle::inset + toggle::box + toggle::labelGap); }
 } // namespace
 
 LookAndFeel::LookAndFeel()
@@ -182,8 +187,7 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& butto
 {
     const float alpha = enabledAlpha (button);
     const bool on = button.getToggleState();
-    constexpr float boxSize = 14.0f;
-    const auto box = juce::Rectangle<float> (boxSize, boxSize).withCentre ({ 2.0f + boxSize / 2.0f, button.getHeight() / 2.0f });
+    const auto box = juce::Rectangle<float> (toggle::box, toggle::box).withCentre ({ toggle::inset + toggle::box / 2.0f, button.getHeight() / 2.0f });
     if (on)
     {
         g.setColour (lit (colour::text1, highlighted, down).withMultipliedAlpha (alpha));
@@ -198,10 +202,14 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& butto
 
     // The label lights up to text1 on hover, and stays lit while on.
     g.setColour ((on || highlighted ? colour::text1 : button.findColour (juce::ToggleButton::textColourId)).withMultipliedAlpha (alpha));
-    g.setFont (font (size::fs3));
-    g.drawFittedText (button.getButtonText(),
-                      button.getLocalBounds().withTrimmedLeft (juce::roundToInt (box.getRight()) + 6),
+    g.setFont (toggleLabelFont());
+    g.drawFittedText (button.getButtonText(), button.getLocalBounds().withTrimmedLeft (toggleLabelLeft()),
                       juce::Justification::centredLeft, 1);
+}
+
+int LookAndFeel::idealToggleWidth (const juce::String& text)
+{
+    return toggleLabelLeft() + textWidth (toggleLabelFont(), text);
 }
 
 //==============================================================================
