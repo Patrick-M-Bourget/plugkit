@@ -467,9 +467,28 @@ screens() {
     step "Renders into $dir"
     mkdir -p "$dir"
     dir=$(cd "$dir" && pwd)
-    cmake --build "$BUILD_DIR" --config Release --parallel --target "${PLUGIN_NAME}_plugin_tests"
-    env "${VAR_PREFIX}SCREENS=$dir" "$(test_exe "${PLUGIN_NAME}_plugin_tests")" --warn UnmatchedTestSpec "[.screens]"
+    tagged "[.screens]"
+    local exe
+    for exe in "${tagged_exes[@]}"; do
+        env "${VAR_PREFIX}SCREENS=$dir" "$exe" --warn UnmatchedTestSpec "[.screens]"
+    done
     ls "$dir"
+}
+
+# Builds the test targets and lists, in tagged_exes, the executables holding tests that match a Catch2 test spec
+# (a tag); none holding one fails, rather than running nothing.
+tagged() {
+    local target exe
+    tagged_exes=()
+    cmake --build "$BUILD_DIR" --config Release --parallel --target "${test_targets[@]}" || return
+    for target in "${test_targets[@]}"; do
+        exe=$(test_exe "$target")
+        [ -z "$("$exe" --list-tests --verbosity quiet "$1")" ] || tagged_exes+=("$exe")
+    done
+    if [ "${#tagged_exes[@]}" = 0 ]; then
+        echo "No test in ${test_targets[*]} matches $1" >&2
+        return 1
+    fi
 }
 
 # Timings taken while the machine is busy (other builds, other agents) measure the machine, not the plugin:
@@ -626,8 +645,11 @@ paint() {
     step "Paint time"
     busy "paint time not measured" && return 3
     # `all` calls paint under ||, where set -e is off: return a failed build rather than time a stale exe.
-    cmake --build "$BUILD_DIR" --config Release --parallel --target "${PLUGIN_NAME}_plugin_tests" || return
-    "$(test_exe "${PLUGIN_NAME}_plugin_tests")" "[paint]"
+    tagged "[paint]" || return
+    local exe
+    for exe in "${tagged_exes[@]}"; do
+        "$exe" "[paint]" || return
+    done
 }
 
 # A sanitizer build compiles the dependencies with its own flags, so it builds them in its own folder,
@@ -648,14 +670,17 @@ sanitizer_deps() {
 # (TESTS_DIR/engine/FootprintTest.cpp), which fail above their ceilings.
 engine_heap() {
     step "Engine heap"
-    cmake --build "$BUILD_DIR" --config Release --parallel --target "${PLUGIN_NAME}_engine_tests"
-    local out status=0
-    out=$("$(test_exe "${PLUGIN_NAME}_engine_tests")" "[footprint]") || status=$?
-    if [ "$status" != 0 ]; then
-        printf '%s\n' "$out"
-        return "$status"
-    fi
-    grep -E 'Engine heap|Analyzer FIFOs' <<< "$out"
+    tagged "[footprint]"
+    local exe out status
+    for exe in "${tagged_exes[@]}"; do
+        status=0
+        out=$("$exe" "[footprint]") || status=$?
+        if [ "$status" != 0 ]; then
+            printf '%s\n' "$out"
+            return "$status"
+        fi
+        grep -E 'Engine heap|Analyzer FIFOs' <<< "$out"
+    done
 }
 
 # The binary of one format in the shipping build.
