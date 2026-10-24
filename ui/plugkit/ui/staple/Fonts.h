@@ -36,6 +36,10 @@ struct Typefaces
 // as they change. Made once per weight and size, and copied from then on.
 juce::Font font (float size, Weight weight = Weight::regular);
 
+// A section's title (design-system/tokens.json, the "section" text style): fs3 at 700, letter-spaced 0.08 em. The
+// style is uppercase; the caller draws the title upper-cased.
+juce::Font sectionTitleFont();
+
 // The bundled typeface itself.
 juce::Typeface::Ptr typeface (Weight weight);
 

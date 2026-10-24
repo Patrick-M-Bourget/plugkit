@@ -3,6 +3,7 @@
 #include "Fonts.h"
 
 #include "StapleFonts.h"
+#include "Tokens.h"
 
 #include <cmath>
 
@@ -33,6 +34,8 @@ juce::Font font (float size, Weight weight)
     const juce::Font made = juce::FontOptions {}.withTypeface (typefaces->weights[static_cast<size_t> (weight)]).withPointHeight (size).withFeatureEnabled ("tnum");
     return typefaces->fonts.emplace (key, made).first->second;
 }
+
+juce::Font sectionTitleFont() { return font (tokens::size::fs3, Weight::bold).withExtraKerningFactor (0.08f); }
 
 int textWidth (const juce::Font& font, const juce::String& text)
 {
