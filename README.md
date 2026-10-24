@@ -37,7 +37,7 @@ The CI scripts and the check harness live here too.
   target_compile_definitions(<name>_plugin_tests PRIVATE PLUGKIT_HARNESS_VAR_PREFIX="COMP1_")
   ```
 
-  `harness::OpenEditor<Processor>` opens the plugin's editor in a window of its own; a plugin's subclass of it adds helpers for its own displays. The editor must be an `EditorTick::Host`. The harness lives in plugkit's checkout, not the plugin's tests, so a plugin's `plugkit.conf` leaves `EDITOR_HARNESS` out.
+  `harness::OpenEditor<Processor>` opens the plugin's editor in a window of its own; a plugin's subclass of it adds helpers for its own displays. The editor must be an `EditorTick::Host`. A test of where the pointer is (a hover card that must go when it leaves) puts the editor in a `harness::HostWindow` and moves the pointer through that window, so JUCE sends the enters and exits as it does in a host. The harness lives in plugkit's checkout, not the plugin's tests, so a plugin's `plugkit.conf` leaves `EDITOR_HARNESS` out.
 - **Tokens:** Staple's tokens are the kit's (`plugkit/ui/staple/Tokens.h`), documented for every plugin in `ui/plugkit/ui/staple/design-system/` (the brand book, `tokens.json` and the component guidelines). A plugin's own colours and sizes live in its own tokens header, which its `TOKENS_DIR` names.
 
 ## Session state
