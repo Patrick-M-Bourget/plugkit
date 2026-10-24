@@ -4,7 +4,8 @@
 // size and its display's, Band panel's and Detection Range bar's layout (the window's padding and gap, the header's,
 // footer's and meter rail's sizes and the menus' stay), and the dynamics, handle, dynamicRangeHandle, ghost, hoverCard
 // and curve namespaces, which eq1 keeps beside its own components; listed in eq1#231. Of the header namespace, the kit
-// has the two tokens plugkit-ui's Preset and A/B widgets read.
+// has the two tokens plugkit-ui's Preset and A/B widgets read. Of the curve namespace, it has globalBypassScale, which
+// comp1 shares, kept in motion beside globalBypassFadeMs.
 
 // Staple's design tokens: the values in docs/staple-handoff/tokens.json and HANDOFF.md's visual spec,
 // kept by hand. The only place in plugkit-ui a colour is written as a number. design-system/ beside this file
@@ -162,6 +163,7 @@ namespace motion
     constexpr int dur1Ms = 120, dur2Ms = 180, dur3Ms = 240; // hover/press, menus/cards, panels
     constexpr int hoverFadeMs = 220;                        // a Band curve's hover fade, and the Hover Card's hide delay
     constexpr int globalBypassFadeMs = 150;                 // the display's curves fading into and out of Global Bypass
+    constexpr float globalBypassScale = 0.45f;              // what shows the plugin's work, of its usual alphas, under Global Bypass
     // The one easing curve: cubic-bezier (0.2, 0.7, 0.2, 1).
     constexpr float easeX1 = 0.2f, easeY1 = 0.7f, easeX2 = 0.2f, easeY2 = 1.0f;
     // Menus, popovers and cards pop in from 3 px lower at 98.5 % scale.
