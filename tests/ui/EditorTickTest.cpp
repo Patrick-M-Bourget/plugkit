@@ -8,7 +8,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
 #include <thread>
+#include <vector>
 
 using Host = harness::OpenEditor<plugkit::test::TestProcessor>;
 using plugkit::test::TestProcessor;
@@ -60,5 +62,36 @@ TEST_CASE ("Host Automation from another thread wakes the tick on its next callb
     REQUIRE (host.settleUntil ([&] { return probe.rateAfter != 0; }));
     CHECK (probe.saw);
     CHECK (probe.rateAfter == plugkit::ui::EditorTick::activeHz);
+    host.editor->removeChildComponent (&probe);
+}
+
+TEST_CASE ("With a fixed tick duration, each Client gets exactly that duration whatever real time passed; cleared, real time again")
+{
+    Host host;
+    // A Client that notes the seconds each tick hands it.
+    struct Probe final : juce::Component, plugkit::ui::EditorTick::Client
+    {
+        Probe() : Client (static_cast<juce::Component&> (*this)) {}
+        void tick (double seconds) override { got.push_back (seconds); }
+        std::vector<double> got;
+    } probe;
+    host.editor->addChildComponent (probe);
+
+    // 4 ms: shorter than a tick at either rate (60 Hz or 10 Hz) takes in real time, and inside the range a real tick
+    // is clamped to, so neither the real interval nor its clamp could give it.
+    constexpr double fixed = 0.004;
+    host.fixTickSeconds (fixed);
+    // Long enough for idle ticks (100 ms apart) as well as active ones.
+    REQUIRE (host.settleUntil ([&] { return probe.got.size() >= 5; }));
+    host.settle (250);
+    for (const double seconds : probe.got)
+        CHECK (seconds == fixed);
+
+    // Cleared: the tick hands over the real time since the one before again, which is never exactly 4 ms.
+    host.fixTickSeconds (std::nullopt);
+    probe.got.clear();
+    REQUIRE (host.settleUntil ([&] { return probe.got.size() >= 3; }));
+    for (const double seconds : probe.got)
+        CHECK (seconds != fixed);
     host.editor->removeChildComponent (&probe);
 }

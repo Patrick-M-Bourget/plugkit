@@ -25,6 +25,12 @@ void EditorTick::add (Client& client)
     client.join (this);
 }
 
+void EditorTick::fixTickSeconds (std::optional<double> seconds)
+{
+    jassert (! seconds.has_value() || *seconds > 0.0);
+    fixedSeconds = seconds;
+}
+
 void EditorTick::wake()
 {
     woken = true;
@@ -51,7 +57,8 @@ void EditorTick::timerCallback()
 {
     ++ticks;
     const double now = juce::Time::getMillisecondCounterHiRes();
-    const double seconds = lastTickMs <= 0.0 ? 1.0 / activeHz : juce::jlimit (0.001, 0.25, (now - lastTickMs) / 1000.0);
+    const double realSeconds = lastTickMs <= 0.0 ? 1.0 / activeHz : juce::jlimit (0.001, 0.25, (now - lastTickMs) / 1000.0);
+    const double seconds = fixedSeconds.value_or (realSeconds);
     lastTickMs = now;
     // A change a Client makes while ticking is one the next tick shows.
     woken = false;
