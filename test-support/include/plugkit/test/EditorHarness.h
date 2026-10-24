@@ -321,6 +321,16 @@ struct HostWindow final : juce::Component
                                      juce::MouseInputSource::defaultOrientation, juce::Time::currentTimeMillis());
     }
 
+    // A wheel turn with the pointer at at, in c's coordinates.
+    void wheelAt (juce::Component& c, juce::Point<float> at)
+    {
+        lastPointer = getLocalPoint (&c, at);
+        lastMods = {};
+        juce::MouseWheelDetails wheel {};
+        wheel.deltaY = 0.1f;
+        getPeer()->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, lastPointer, juce::Time::currentTimeMillis(), wheel);
+    }
+
     // The pointer again where it last was, as JUCE's fake move after a component is shown, hidden or moved sends it:
     // that one comes through the message loop, which the harness doesn't run.
     void pointerAgain() { pointerAtWindow (lastPointer, lastMods); }

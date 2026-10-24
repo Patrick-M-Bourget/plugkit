@@ -25,7 +25,9 @@ namespace staple
 // the window), the tip hides and a picture of it fades out in its place over fadeOutMs, behind any tip
 // that shows next. JUCE only notices the pointer has gone on its next timer tick, and hides the tip
 // abruptly then; this hears of it from the pointer's events, which JUCE sends to every Tooltip window.
-// A click or a wheel turn hides a tip, and ends a fade, at once.
+// A click or a wheel turn hides a tip, and ends a fade, at once. The control it happened on then has no tip until
+// the pointer moves more than dismissalMovePx or onto another component, and JUCE's 500 ms in which it shows a tip
+// again at once have passed: the tip shows again only after a fresh 700 ms rest.
 //
 // It asks a control for its tip through a TipSource: JUCE's getTipFor unless one is given. JUCE's answers
 // nothing to a process in the background, such as a test's, so a test gives one that answers as JUCE's does
@@ -34,6 +36,7 @@ class TooltipWindow final : public juce::TooltipWindow
 {
 public:
     static constexpr int fadeOutMs = 100;
+    static constexpr float dismissalMovePx = 4.0f;
 
     // A control's tip, or nothing for none.
     using TipSource = std::function<juce::String (juce::Component&)>;
@@ -55,6 +58,9 @@ private:
     void pointerOver (juce::Component* under);
     void fadeOut();
     void endFade();
+    // A click or a wheel turn: hides the tip, and keeps the control's from showing again (dismissed).
+    void dismiss (const juce::MouseEvent& e);
+    bool isDismissed (juce::Component& c);
 
     void mouseMove (const juce::MouseEvent& e) override;
     void mouseExit (const juce::MouseEvent& e) override;
@@ -70,6 +76,15 @@ private:
 
     TipSource tipSource;
     juce::Component::SafePointer<juce::Component> control, showingFor;
+    // The control a click or wheel turn last dismissed a tip on, where and when, and whether the pointer has moved
+    // on since.
+    struct Dismissed
+    {
+        juce::Component::SafePointer<juce::Component> control;
+        juce::Point<int> at;
+        juce::uint32 time = 0;
+        bool moved = false;
+    } dismissed;
     bool placing = false;
     Fading fading;
     Tween fade { fadeOutMs, 0.0f };

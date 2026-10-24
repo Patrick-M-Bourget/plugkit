@@ -8,6 +8,7 @@
 #include "plugkit/ui/staple/TooltipWindow.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <memory>
 
@@ -79,4 +80,29 @@ TEST_CASE ("A Tooltip appears after the pointer rests 700 ms on its control, bel
     CHECK (h.restOn (h.gain) >= 700);
     CHECK (h.tips.getY() >= h.gain.getBottom());
     CHECK (std::abs (h.tips.getBounds().getCentreX() - h.gain.getBounds().getCentreX()) <= 1);
+}
+
+TEST_CASE ("After a wheel turn or a click, a Tooltip stays hidden until the pointer moves, then rests 700 ms again")
+{
+    Hosted h;
+    const bool wheel = GENERATE (true, false);
+    INFO ((wheel ? "a wheel turn" : "a click"));
+    const auto at = Hosted::centreOf (h.gain);
+    h.restOn (h.gain, at);
+
+    if (wheel)
+    {
+        h.window->wheelAt (h.gain, at);
+    }
+    else
+    {
+        h.window->pointerAt (h.gain, at, juce::ModifierKeys::leftButtonModifier);
+        h.window->pointerAt (h.gain, at);
+    }
+    CHECK_FALSE (h.tips.isVisible());
+    // Well past the 500 ms in which JUCE shows a tip again at once, and a 700 ms rest after it.
+    harness::settle (1500);
+    CHECK_FALSE (h.tips.isVisible());
+
+    CHECK (h.restOn (h.gain, at.translated (6.0f, 0.0f)) >= 700);
 }
