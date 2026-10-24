@@ -24,7 +24,8 @@ double draggedAlongRange (juce::Slider& slider, double from, float pixels, bool 
 // (setDoubleClickReturnValue: SliderAttachment sets the parameter's default), and a drag on its second
 // press carries on from there, as one gesture (KeyboardSlider::startMouseDrag). The arrow
 // keys step it as any KeyboardSlider. While the pointer is over it, or it is dragged, a KnobTooltip shows
-// its title and value text; a double-click on the tooltip types a value. Disabled, it dims to 35 % and
+// its title and value text; a double-click on the tooltip types a value. Showing it hides any other knob's on
+// the same overlay layer, unless a value is being typed into that one. Disabled, it dims to 35 % and
 // ignores the mouse and keys.
 //
 // A knob can reserve a lane outside its face (the Gain knob's Dynamic Range ring): presses, drags and
@@ -73,9 +74,9 @@ public:
 
     // What the tooltip shows: the title, else the name, and the value text with its unit, as a screen
     // reader reads it (KeyboardSlider::describe), else its text; the ring's while its lane is hovered or
-    // dragged.
+    // dragged, and after, until the pointer is next on the face or ring (on the way to the Readout, its content stays).
     juce::String tooltipTitle() const;
-    bool isTooltipOnRing() const { return ring != nullptr && (ringHovered || ringDragging); }
+    bool isTooltipOnRing() const { return ring != nullptr && (readoutOnRing || ringDragging); }
     juce::String tooltipValue();
     bool isTooltipShown() const;
     KnobTooltip* getKnobTooltip() const { return tooltip.get(); }
@@ -129,6 +130,8 @@ private:
     RingHandler* ring = nullptr;
     float ringWidth = 0.0f, ringOffset = 0.0f;
     bool ringHovered = false;
+    // Whether the pointer was on the ring when last on the face or ring: the Readout shows the ring's content.
+    bool readoutOnRing = false;
 
     bool ringDragging = false;
 
