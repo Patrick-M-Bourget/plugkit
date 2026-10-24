@@ -138,6 +138,24 @@ TEST_CASE ("The Frequency labels sit 10 px above the bottom, centred on their li
     }
 }
 
+TEST_CASE ("frequencyLabels gives the Frequency labels alone, as gridLabels draws them")
+{
+    const auto width = GENERATE (1134, 799);
+    const DisplayGeometry geometry { .width = width, .height = 612, .narrowWidth = narrowWidth };
+    const auto labels = plugkit::ui::display::frequencyLabels (geometry);
+    CHECK (texts (labels)
+           == (width < narrowWidth ? std::vector<juce::String> { "20", "100", "500", "2k", "10k" }
+                                   : std::vector<juce::String> { "20", "50", "100", "200", "500", "1k", "2k", "5k", "10k", "20k" }));
+    for (const auto& label : labels)
+        CHECK_THAT (label.area.getBottom(), WithinAbs (602.0, 0.01));
+    // gridLabels' Frequency labels are these, at the bottom, ahead of the Gain labels.
+    std::vector<plugkit::ui::display::Label> bottom;
+    for (const auto& l : plugkit::ui::display::gridLabels (geometry))
+        if (l.area.getBottom() > 590.0f)
+            bottom.push_back (l);
+    CHECK (bottom == labels);
+}
+
 TEST_CASE ("The Gain labels sit 42 px from the right, signed, 0 brighter than the rest, without +/- the Display Range")
 {
     namespace colour = staple::tokens::colour;

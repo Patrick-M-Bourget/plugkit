@@ -61,7 +61,7 @@ GridLines gridLines (const DisplayGeometry& geometry)
     return lines;
 }
 
-std::vector<Label> gridLabels (const DisplayGeometry& geometry)
+std::vector<Label> frequencyLabels (const DisplayGeometry& geometry)
 {
     std::vector<Label> labels;
     const auto bottom = static_cast<float> (geometry.height) - frequencyLabelAboveBottom;
@@ -91,7 +91,12 @@ std::vector<Label> gridLabels (const DisplayGeometry& geometry)
         }
         labels.push_back ({ text, area, justification, colour::text2, size::fs2 });
     }
+    return labels;
+}
 
+std::vector<Label> gridLabels (const DisplayGeometry& geometry)
+{
+    auto labels = frequencyLabels (geometry);
     const double step = geometry.rangeDb / 3.0;
     const auto right = static_cast<float> (geometry.width) - gainLabelFromRight;
     for (int i = 2; i >= -2; --i)
