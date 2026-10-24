@@ -1,7 +1,10 @@
 #pragma once
 
-// Copied from eq1's plugin/staple/controls/Knob.h (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider; listed in
-// eq1#231.
+// Copied from eq1's plugin/staple/controls/Knob.h (eq1 at dbb1127), its base plugkit::ui::KeyboardSlider, and with
+// the plugkit additions Knob.cpp names: the Readout's watchdog check (watchTooltip), the way to the Readout
+// (isOnWayToReadout) kept only while the pointer crosses it (restOnWayChecks), the ring's Readout content kept on that
+// way (readoutOnRing), the ring read at the pixel JUCE hit-tests (isOnRingAsHit), and the ring's typing hooks
+// (RingHandler::ringAcceptsTypedText); listed in eq1#231.
 
 #include "../../KeyboardSlider.h"
 #include "../Tokens.h"

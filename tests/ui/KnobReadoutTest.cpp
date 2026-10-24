@@ -402,7 +402,8 @@ KnobOfKind knobOf (Hosted& e, Kind kind)
 
 // Points on knob's hit area, on its half away from its Readout, off the face's centre with the Readout below (y flips
 // when it's above): round the face near its edge, from level with the centre over the top; round the ring's lane where
-// it has one; and the starts of two moves that lost the Readout (a Small face's top left, the ring's left).
+// it has one; and two starts whose moves to the Readout's near corners run close to the way's edge (a Small face's top
+// left, the ring's left just below its centre's level).
 std::vector<juce::Point<float>> startsAwayFromReadout (staple::Knob& knob, Kind kind)
 {
     std::vector<juce::Point<float>> starts;
