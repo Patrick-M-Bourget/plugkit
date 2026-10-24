@@ -49,6 +49,9 @@ static_assert (juce::exactlyEqual (staple::tokens::curve::mainHalo, 4.0f));
 static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHalo, 8.0f));
 static_assert (juce::exactlyEqual (staple::tokens::curve::mainOuterHaloAlpha, 0.5f));
 
+// Uppercase text's tracking, tokens.json's "section" letterSpacing: 0.08 em.
+static_assert (juce::exactlyEqual (staple::tokens::size::capsTracking, 0.08f));
+
 TEST_CASE ("The section title's font is the design system's section style: 12 px Manrope at 700, letter-spaced 0.08 em")
 {
     juce::ScopedJuceInitialiser_GUI juce;
@@ -56,17 +59,17 @@ TEST_CASE ("The section title's font is the design system's section style: 12 px
     const auto font = staple::sectionTitleFont();
     CHECK (font.getTypefacePtr() == staple::typeface (staple::Weight::bold));
     CHECK_THAT (font.getHeightInPoints(), WithinAbs (12.0f, 1.0e-4));
-    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.08f, 1.0e-6));
+    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (staple::tokens::size::capsTracking, 1.0e-6));
 }
 
-TEST_CASE ("The label font is the design system's label style: 11 px Manrope at 500, letter-spaced 0.08 em")
+TEST_CASE ("The label font is the design system's label style: 11 px Manrope at 500, not letter-spaced")
 {
     juce::ScopedJuceInitialiser_GUI juce;
     const juce::SharedResourcePointer<staple::Typefaces> held; // the same medium typeface for both calls below
     const auto font = staple::labelFont();
     CHECK (font.getTypefacePtr() == staple::typeface (staple::Weight::medium));
     CHECK_THAT (font.getHeightInPoints(), WithinAbs (11.0f, 1.0e-4));
-    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.08f, 1.0e-6));
+    CHECK_THAT (font.getExtraKerningFactor(), WithinAbs (0.0f, 1.0e-6));
 }
 
 TEST_CASE ("A toggle as wide as its ideal width draws its label whole, as a wider one does, and a pixel narrower squeezes it")

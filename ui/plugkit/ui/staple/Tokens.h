@@ -103,6 +103,9 @@ namespace size
     constexpr float fs3 = 12.0f;
     constexpr float fs4 = 13.0f;
     constexpr float fs5 = 16.0f;
+    // Uppercase text's letter-spacing, 0.08 em (design-system/tokens.json, the "section" style's letterSpacing), as a
+    // juce::Font extra kerning factor. Mixed-case text has none.
+    constexpr float capsTracking = 0.08f;
     constexpr float r1 = 4.0f;
     constexpr float r2 = 6.0f;
     constexpr float r3 = 10.0f;
