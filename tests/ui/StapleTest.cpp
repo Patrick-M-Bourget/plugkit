@@ -192,6 +192,12 @@ TEST_CASE ("The expand and collapse arrows point out to the corners and in to th
 // A shadow that blurs renders an image on every paint; the kit's controls repaint at frame rate, so
 // their shadows are drawSoftShadow's stacked shapes instead (HANDOFF.md §4). Outside the control, what
 // the LookAndFeel draws is that shadow and nothing else.
+// The family's one-knob size (comp1's Compact View Comp), beyond Staple's Frequency, Gain, Q and small.
+TEST_CASE ("The hero knob is 120 px")
+{
+    CHECK (juce::exactlyEqual (staple::tokens::knob::hero, 120.0f));
+}
+
 TEST_CASE ("Staple's LookAndFeel draws a stock knob's and slider thumb's shadows without blur")
 {
     juce::ScopedJuceInitialiser_GUI juce;

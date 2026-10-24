@@ -124,6 +124,9 @@ namespace layout
 namespace knob
 {
     constexpr float frequency = 50.0f, gain = 66.0f, q = 50.0f, small = 30.0f;
+    // The family's one-knob size: comp1's Compact View Comp, its only knob. Beyond Staple's Frequency, Gain, Q and
+    // small sizes, approved for that view alone.
+    constexpr float hero = 120.0f;
     constexpr float rim = 2.0f, rimSmall = 1.5f;           // rimSmall at 30 px and below
     constexpr float arc = 3.0f, arcSmall = 2.0f;           // arcSmall below 40 px
     constexpr float arcInset = 4.5f, arcInsetProportion = 0.1f; // the arc's radius is r - max (arcInset, d x arcInsetProportion)
