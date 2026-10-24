@@ -191,10 +191,11 @@ TEST_CASE ("A Knob Readout hides when the pointer leaves the knob slowly, throug
     REQUIRE (Hosted::underPointer() != &knob);
     // On out of the knob: it hears nothing more.
     e.window.pointerAt (knob, rightOf (knob));
+    // The way to the Readout (the hull of the face and the Readout) reaches out beside the face, level with its centre,
+    // the further the wider the Readout is than the face. At the Small knob (a 30 px face under an 86 px Readout) it
+    // reaches the margin point, so the exit there kept the Readout, and only the watchdog, on its next check, sees the
+    // pointer has gone on off the way. At the Frequency knob (50 px) it falls short of it, and the exit hides it.
     if (&knob == &e.small)
-        // The margin point, level with the centre, is on the way to the Readout (the hull of the face and the
-        // Readout, which reaches out beside the face there when the Readout is the wider), so the exit kept it: the
-        // watchdog hides it on its next check.
         CHECK (harness::settleUntil ([&] { return ! knob.isTooltipShown(); }));
     else
         CHECK_FALSE (knob.isTooltipShown());
@@ -680,9 +681,15 @@ namespace
 // outside the edge, or off it at one just inside.
 enum class Edge
 {
+    // Guards: on the ring at its position and at its pixel alike, so they pass whether the knob reads the ring at
+    // either (Knob::isOnRingAsHit).
     exactly,
     justInside,
+    // The case that fails if the knob reads the ring at the pointer's position rather than its pixel: JUCE has the
+    // pointer on the knob, at its pixel on the ring, while its position is off the ring.
     justOutsideOnItsPixel,
+    // A guard too: JUCE has the pointer off the knob, which hears nothing there to read the ring by, so the Readout
+    // keeps its content as the pointer leaving keeps it, wherever the knob reads the ring.
     justOutsideOffItsPixel
 };
 
