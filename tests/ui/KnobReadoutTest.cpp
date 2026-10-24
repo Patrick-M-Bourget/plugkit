@@ -179,7 +179,10 @@ TEST_CASE ("A Knob Readout stays while the pointer rests on its knob, drags it o
         knob.getKnobTooltip()->startEditing();
         e.window.pointerUnseen (knob, rightOf (knob));
     }
+    // Through the watchdog's checks, which fire before the harness's timer as they fall due sooner.
+    const harness::VisibilityChanges changes (*knob.getKnobTooltip());
     harness::settle (4 * staple::TipWatchdog::periodMs);
+    CHECK (changes.hides == 0);
     CHECK (knob.isTooltipShown());
     if (doing == "drags")
         e.window.pointerAt (knob, rightOf (knob));

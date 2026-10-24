@@ -4,7 +4,8 @@
 // PLUGKIT_HARNESS_VAR_PREFIX, and OpenEditor a template over the plugin's processor, without eq1's EQ display helpers,
 // which eq1's subclass of it keeps, firstParameterOutOfRange taking an infinity a range ends at as in range, and a
 // host's window on a fake peer (HostWindow), which a test sends the pointer and wheel through, hides or covers as the
-// OS would, and which stands in for the OS's pointer; listed in eq1#231.
+// OS would, and which stands in for the OS's pointer, and a count of a component's shows and hides
+// (VisibilityChanges); listed in eq1#231.
 
 #include "plugkit/ui/EditorTick.h"
 #include "plugkit/ui/staple/TipWatchdog.h"
@@ -207,6 +208,22 @@ inline void settleAnimations (int milliseconds = 60)
         FAIL ("settleAnimations gave up after 10 s with " << staple::Tween::numberEasing()
                                                          << " animation(s) still easing");
 }
+
+// Counts the times a component is shown and hidden while this lives. A check that something stays shown or hidden
+// through a wait counts what happened across it, so a hide and show again (or a show and hide again) in the middle
+// fails it, as a look at the wait's end alone would miss.
+struct VisibilityChanges final : juce::ComponentListener
+{
+    explicit VisibilityChanges (juce::Component& c) : component (c) { component.addComponentListener (this); }
+    ~VisibilityChanges() override { component.removeComponentListener (this); }
+    VisibilityChanges (const VisibilityChanges&) = delete;
+    VisibilityChanges& operator= (const VisibilityChanges&) = delete;
+
+    void componentVisibilityChanged (juce::Component& c) override { ++(c.isVisible() ? shows : hides); }
+
+    juce::Component& component;
+    int shows = 0, hides = 0;
+};
 
 // Counts the repaints asked of a component, standing in for its drawing (it draws nothing, children
 // included). Installed with countRepaintsOf, through setCachedComponentImage, which owns it: a test that

@@ -73,22 +73,6 @@ struct Hosted
     juce::uint32 restOn (juce::Component& control) { return restOn (control, centreOf (control)); }
 };
 
-// Counts the times a component is shown while it lives.
-struct ShowCount final : juce::ComponentListener
-{
-    explicit ShowCount (juce::Component& c) : component (c) { component.addComponentListener (this); }
-    ~ShowCount() override { component.removeComponentListener (this); }
-
-    void componentVisibilityChanged (juce::Component& c) override
-    {
-        if (c.isVisible())
-            ++count;
-    }
-
-    juce::Component& component;
-    int count = 0;
-};
-
 } // namespace
 
 TEST_CASE ("A Tooltip appears after the pointer rests 700 ms on its control, below it")
@@ -103,7 +87,9 @@ TEST_CASE ("After a wheel turn or a click, a Tooltip stays hidden until the poin
 {
     Hosted h;
     const bool wheel = GENERATE (true, false);
-    INFO ((wheel ? "a wheel turn" : "a click"));
+    // On over its control, or off it and back to where it was.
+    const bool leaves = GENERATE (false, true);
+    INFO ((wheel ? "a wheel turn" : "a click") << ", then the pointer " << (leaves ? "leaves and comes back" : "moves on"));
     const auto at = Hosted::centreOf (h.gain);
     h.restOn (h.gain, at);
 
@@ -119,18 +105,29 @@ TEST_CASE ("After a wheel turn or a click, a Tooltip stays hidden until the poin
     CHECK_FALSE (h.tips.isVisible());
     // Not shown at any moment until well past the 500 ms in which JUCE shows a tip again at once, and a 700 ms rest
     // after it: JUCE's timer, which runs before the harness's as it falls due sooner, has decided by then.
-    const ShowCount shows (h.tips);
+    const harness::VisibilityChanges changes (h.tips);
     harness::settle (1500);
-    CHECK (shows.count == 0);
+    CHECK (changes.shows == 0);
 
-    CHECK (h.restOn (h.gain, at.translated (6.0f, 0.0f)) >= 700);
+    if (leaves)
+    {
+        h.window->pointerAt (h.bare, Hosted::centreOf (h.bare));
+        CHECK (h.restOn (h.gain, at) >= 700);
+    }
+    else
+    {
+        CHECK (h.restOn (h.gain, at.translated (6.0f, 0.0f)) >= 700);
+    }
 }
 
 TEST_CASE ("A Tooltip stays while the pointer rests on its control")
 {
     Hosted h;
     h.restOn (h.gain);
+    // Through the watchdog's checks, which fire before the harness's timer as they fall due sooner.
+    const harness::VisibilityChanges changes (h.tips);
     harness::settle (4 * staple::TipWatchdog::periodMs);
+    CHECK (changes.hides == 0);
     CHECK (h.tips.isVisible());
 }
 
@@ -154,7 +151,7 @@ TEST_CASE ("A Tooltip fades out on its watchdog's check once the OS has the poin
     CHECK (h.tips.fadingOut().getAlpha() == 0.0f);
     // JUCE's timer, which still has the pointer on the control, doesn't show it again, not even for one watchdog
     // period, until well past the 500 ms in which it shows a tip again at once and a 700 ms rest after it.
-    const ShowCount shows (h.tips);
+    const harness::VisibilityChanges changes (h.tips);
     harness::settle (1500);
-    CHECK (shows.count == 0);
+    CHECK (changes.shows == 0);
 }
