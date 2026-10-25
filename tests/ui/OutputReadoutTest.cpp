@@ -4,7 +4,7 @@
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
-#include "plugkit/ui/OutputPopoverFrame.h"
+#include "plugkit/ui/FooterPopoverFrame.h"
 #include "plugkit/ui/OutputReadout.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -21,7 +21,7 @@ const juce::KeyPress escape (juce::KeyPress::escapeKey);
 // An output popover on the frame, standing in for a plugin's: eq1's card width, and one toggle, eq1's Output Meter's,
 // which shows what the processor holds (meterShown, standing in for eq1's isOutputMeterShown) each time the frame has
 // it follow the processor.
-struct TestPopover final : plugkit::ui::OutputPopoverFrame
+struct TestPopover final : plugkit::ui::FooterPopoverFrame
 {
     TestPopover()
     {

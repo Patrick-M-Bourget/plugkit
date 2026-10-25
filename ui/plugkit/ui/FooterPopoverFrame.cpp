@@ -1,7 +1,7 @@
 // New in plugkit, lifted from eq1's plugin/OutputPopover.cpp (eq1 at dbb1127): OutputPopover's openFrom and tick, as
-// OutputPopoverFrame's, and its OutputToggle; listed in eq1#231.
+// FooterPopoverFrame's, and its OutputToggle; listed in eq1#231.
 
-#include "OutputPopoverFrame.h"
+#include "FooterPopoverFrame.h"
 
 #include "staple/Fonts.h"
 #include "staple/Light.h"
@@ -49,11 +49,11 @@ void OutputToggle::paintButton (juce::Graphics& g, bool highlighted, bool down)
     }
 }
 
-OutputPopoverFrame::OutputPopoverFrame() : EditorTick::Client (static_cast<juce::Component&> (*this)) {}
+FooterPopoverFrame::FooterPopoverFrame() : EditorTick::Client (static_cast<juce::Component&> (*this)) {}
 
-OutputPopoverFrame::~OutputPopoverFrame() = default;
+FooterPopoverFrame::~FooterPopoverFrame() = default;
 
-void OutputPopoverFrame::openFrom (juce::Component& readout)
+void FooterPopoverFrame::openFrom (juce::Component& readout)
 {
     followProcessor();
     open (readout, Placement::above);
@@ -64,7 +64,7 @@ void OutputPopoverFrame::openFrom (juce::Component& readout)
     }
 }
 
-void OutputPopoverFrame::tick (double)
+void FooterPopoverFrame::tick (double)
 {
     if (isOpen())
         followProcessor();

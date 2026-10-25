@@ -18,7 +18,7 @@ namespace plugkit::ui
 juce::String outputReadoutText (double db, double silentDb = -std::numeric_limits<double>::infinity());
 
 // The footer's Output readout: Output Gain, plus Auto Gain's estimate while Auto Gain is on, as text the plugin sets
-// (outputReadoutText) on its editor's tick. A click opens and closes the output popover (OutputPopoverFrame), which the
+// (outputReadoutText) on its editor's tick. A click opens and closes the output popover (FooterPopoverFrame), which the
 // plugin's footer wires to it; fill2 behind it while that is open. A screen reader reads it as a button titled
 // "Output" whose value is its text.
 class OutputReadout final : public staple::TextChip
