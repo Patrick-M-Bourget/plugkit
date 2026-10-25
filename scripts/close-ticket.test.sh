@@ -4,6 +4,7 @@
 # which origin/main doesn't; a commit pushed to origin after the clone cites #56, which only a fetch sees.
 # The fake gh logs each call to gh.log, one argument per line, and exits with gh.exit's code (0 when it's missing).
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# New in plugkit, for eq1 to take; listed in eq1#231.
 set -uo pipefail
 script=$(cd "$(dirname "$0")" && pwd)/close-ticket.sh
 tmp=$(mktemp -d)

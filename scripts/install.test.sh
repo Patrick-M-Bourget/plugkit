@@ -4,6 +4,7 @@
 # that uninstalls them. Runs scripts/check.sh from a scratch plugin repository, with fakes of cmake, auval and
 # killall, and HOME in the scratch folder, so nothing is built and the real ~/Library is untouched.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# New in plugkit, for eq1 to take; listed in eq1#231.
 set -uo pipefail
 unset $(git rev-parse --local-env-vars)
 unset GITHUB_ACTIONS FETCHCONTENT_BASE_DIR BUILD_DIR

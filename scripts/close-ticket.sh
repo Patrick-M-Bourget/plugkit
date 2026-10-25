@@ -9,6 +9,8 @@
 # The comment, which can't be empty, goes to gh issue close as it is. It runs at the root of the repository it is
 # run in, from any folder of it, and closes the ticket in the repository gh reads from there. It exits with gh's
 # code, or 1 when it refuses or can't read origin/main.
+#
+# New in plugkit, for eq1 to take; listed in eq1#231.
 set -uo pipefail
 usage='usage: scripts/close-ticket.sh <ticket number> [--comment "<text>"]'
 ticket=${1:-}
