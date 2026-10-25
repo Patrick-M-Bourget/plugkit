@@ -7,6 +7,7 @@
 # "file:line: points at #N, which this PR closes": merged, that citation would point at a closed ticket, which
 # scripts/check.sh docs refuses on main. The rule for a citation is scripts/cited-tickets.sh's. --user-approved
 # doesn't override it: it's a content error, not a verdict.
+# A PR behind its base is first updated with it (gh pr update-branch), and the new head is the one CI must pass.
 #
 #   scripts/merge-on-green.sh <PR number>
 #   scripts/merge-on-green.sh <PR number> --user-approved "<the user's words>"
@@ -25,6 +26,44 @@ if [ $# -gt 1 ]; then
     approval=$3
 fi
 
+# The head CI runs on: a push after this is judged by nothing that ran, so it stops the merge.
+read_head() { gh pr view "$pr" --json headRefOid -q .headRefOid; }
+head=$(read_head)
+head_moved() {
+    local now
+    now=$(read_head)
+    if [ "$now" != "$head" ]; then
+        echo "NOT MERGED #$pr: head moved from ${head:0:7} to ${now:0:7}; run again"
+        exit 1
+    fi
+}
+
+# A PR behind its base would merge code CI never ran together with what the base has gained: update it with
+# the base, and judge the new head. The compare API says so on any repository (mergeStateStatus reports BEHIND
+# only under branch protection).
+base=$(gh pr view "$pr" --json baseRefName -q .baseRefName)
+if ! behind=$(gh api "repos/{owner}/{repo}/compare/$base...$head" --jq .behind_by); then
+    echo "NOT MERGED #$pr: could not compare ${head:0:7} with $base"
+    exit 1
+fi
+if [ "$behind" != 0 ]; then
+    if ! gh pr update-branch "$pr"; then
+        echo "NOT MERGED #$pr: could not update it with $base; rebase it"
+        exit 1
+    fi
+    old=$head
+    for _ in 1 2 3 4 5 6; do
+        sleep 10
+        head=$(read_head)
+        [ "$head" != "$old" ] && break
+    done
+    if [ "$head" = "$old" ]; then
+        echo "NOT MERGED #$pr: head still at ${old:0:7} after updating it with $base; run again"
+        exit 1
+    fi
+    echo "updated #$pr with $base: ${old:0:7} -> ${head:0:7}; waiting on its checks"
+fi
+
 sleep 30 # let the checks register
 # GitHub runs no CI on a PR that conflicts with main: say so at once rather than wait.
 state=UNKNOWN
@@ -37,17 +76,6 @@ if [ "$state" = CONFLICTING ]; then
     echo "NOT MERGED #$pr: conflicts with main; rebase it"
     exit 1
 fi
-
-# The head CI is about to run on: a push after this is judged by nothing that ran, so it stops the merge.
-head=$(gh pr view "$pr" --json headRefOid -q .headRefOid)
-head_moved() {
-    local now
-    now=$(gh pr view "$pr" --json headRefOid -q .headRefOid)
-    if [ "$now" != "$head" ]; then
-        echo "NOT MERGED #$pr: head moved from ${head:0:7} to ${now:0:7}; run again"
-        exit 1
-    fi
-}
 
 # Code citing a ticket this PR closes would cite a closed ticket once merged (scripts/check.sh docs).
 if ! closes=$("$(dirname "$0")/closing-tickets.sh" "$pr"); then

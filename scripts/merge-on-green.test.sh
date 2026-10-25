@@ -8,6 +8,8 @@
 # The tickets the PR closes come from closes (JSON array of numbers, its closingIssuesReferences) and body; its
 # head's files are a scratch repo's, whose commits are $a (citing no ticket) and $c (citing #12 in engine/a.cpp),
 # read through the fake git's grep (fetches are logged to fetch.log, and fail if $FAKE/no-fetch).
+# Its base is main; the heads listed in behind (one SHA per line) are behind it, as the compare API's behind_by
+# says, and gh pr update-branch is logged to update.log (and fails if $FAKE/no-update).
 # gh pr merge is logged to merge.log, and refused when --match-head-commit isn't the PR's head. Branch deletions,
 # through gh api and a fake git (local branch "topic" exists unless $FAKE/no-local, and is checked out in a
 # worktree if $FAKE/checked-out), are logged to deleted.log. It runs in the scratch repo, as at a plugin's root.
@@ -28,7 +30,7 @@ query=. fields=
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
     case ${args[i]} in
-        -q) query=${args[i + 1]} ;;
+        -q | --jq) query=${args[i + 1]} ;;
         --json) fields=${args[i + 1]} ;;
     esac
 done
@@ -41,6 +43,16 @@ case "$1 $2 $fields" in
     "pr view mergeable") jq -n --arg m "$(cat "$FAKE/mergeable")" '{mergeable: $m}' | jq -r "$query" ;;
     "pr view title") jq -n --arg t "$(cat "$FAKE/title")" '{title: $t}' | jq -r "$query" ;;
     "pr view headRefName") echo topic ;;
+    "pr view baseRefName") jq -n '{baseRefName: "main"}' | jq -r "$query" ;;
+    "api repos/{owner}/{repo}/compare/main..."*)
+        behind=0
+        grep -qx "${2##*...}" "$FAKE/behind" 2> /dev/null && behind=3
+        jq -n --argjson b "$behind" '{behind_by: $b}' | jq -r "$query"
+        ;;
+    "pr update-branch "*)
+        printf '%s\n' "$*" >> "$FAKE/update.log"
+        [ ! -e "$FAKE/no-update" ]
+        ;;
     "pr view closingIssuesReferences,body")
         jq -n --argjson c "$(cat "$FAKE/closes")" --arg b "$(cat "$FAKE/body")" \
             '{closingIssuesReferences: $c | map({number: .}), body: $b}' | jq -r "$query"
@@ -222,6 +234,39 @@ expect 1 "could not fetch its head" unmerged "a head it can't fetch isn't merged
 pr "$green" "$b" "[\"qa-verdict: pass sha=${b:0:7}\"]"
 echo "[12]" > "$FAKE/closes"
 expect 1 "could not read" unmerged "a head whose files it can't read isn't merged"
+
+# merged_at <head> <description>: gh pr merge was asked to merge exactly that head
+merged_at() {
+    grep -q -- "--match-head-commit $1 " "$FAKE/merge.log" 2> /dev/null || {
+        echo "FAIL: $2: didn't merge at ${1:0:7}: $(cat "$FAKE/merge.log" 2> /dev/null)" >&2
+        failures=$((failures + 1))
+    }
+}
+
+pr "$green" "$a"$'\n'"$b" "[\"qa-verdict: pass sha=${b:0:7}\"]"
+echo "$a" > "$FAKE/behind"
+expect 0 "^MERGED #7" merged "a PR behind main is updated with it, then merged at the new head on green"
+grep -qx "pr update-branch 7" "$FAKE/update.log" 2> /dev/null || {
+    echo "FAIL: a PR behind main wasn't updated: $(cat "$FAKE/update.log" 2> /dev/null)" >&2
+    failures=$((failures + 1))
+}
+merged_at "$b" "a PR behind main"
+
+pr "$green" "$a"
+expect 0 "^MERGED #7" merged "a PR level with main isn't updated"
+if [ -e "$FAKE/update.log" ]; then
+    echo "FAIL: a PR level with main was updated" >&2
+    failures=$((failures + 1))
+fi
+
+pr "$green" "$a"
+echo "$a" > "$FAKE/behind"
+touch "$FAKE/no-update"
+expect 1 "could not update it with main" unmerged "a PR behind main that can't be updated isn't merged"
+
+pr "$green" "$a"
+echo "$a" > "$FAKE/behind"
+expect 1 "still at ${a:0:7} after updating it with main" unmerged "an update whose new head never shows isn't merged"
 
 if [ "$failures" = 0 ]; then
     echo "merge-on-green.sh merges only the head CI passed, with every required job by name"
