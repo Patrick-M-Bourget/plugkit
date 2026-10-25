@@ -926,7 +926,8 @@ validate_au() (
 
 # A host test's install: the VST3 and the AU, built Universal (Release, as configure builds) in BUILD_DIR-install, a
 # folder of their own, and copied into ~/Library/Audio/Plug-Ins over any older copy; then auval on the installed AU.
-# validate refuses to run while the AU is installed, so the line that uninstalls both is printed last.
+# validate refuses to run while the AU is installed, so the line that uninstalls both is printed last, whether auval
+# passes or fails.
 install_plugin() {
     if [ "$os" != macos ]; then
         echo "install puts the plugin into ~/Library/Audio/Plug-Ins and runs auval: macOS only; skipped"
@@ -952,12 +953,18 @@ install_plugin() {
     killall -9 AudioComponentRegistrar 2> /dev/null || true
     # shellcheck disable=SC2086 # AU_ID is the AU's type, subtype and manufacturer, one word each
     if ! auval -v $AU_ID; then
-        echo "auval failed on the installed $component ($AU_ID); it stays installed" >&2
+        echo "auval failed on the installed $component ($AU_ID); both stay installed:" >&2
+        installed_paths >&2
         return 1
     fi
 
     commit=$(git describe --always --dirty 2> /dev/null || echo "no commit")
     step "Installed $PRODUCT_NAME at $commit"
+    installed_paths
+}
+
+# The installed VST3 and AU (install_plugin's vst3 and component), and the line that uninstalls both.
+installed_paths() {
     printf '%s\n%s\n' "$vst3" "$component"
     echo "validate refuses to run while the AU is installed. To uninstall both:"
     printf '  rm -rf "%s" "%s"\n' "$vst3" "$component"
