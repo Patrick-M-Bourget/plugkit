@@ -6,23 +6,27 @@
 #
 #   scripts/close-ticket.sh <ticket number> [--comment "<text>"]
 #
-# The comment goes to gh issue close as it is. Run it at the plugin repository's root; it closes the ticket in the
-# repository gh reads from there. It exits with gh's code, or 1 when it refuses or can't read origin/main.
+# The comment, which can't be empty, goes to gh issue close as it is. It runs at the root of the repository it is
+# run in, from any folder of it, and closes the ticket in the repository gh reads from there. It exits with gh's
+# code, or 1 when it refuses or can't read origin/main.
 set -uo pipefail
 usage='usage: scripts/close-ticket.sh <ticket number> [--comment "<text>"]'
 ticket=${1:-}
 [[ $ticket =~ ^[0-9]+$ ]] || { echo "$usage" >&2; exit 2; }
 close=(gh issue close "$ticket")
 if [ $# -gt 1 ]; then
-    [ $# = 3 ] && [ "$2" = --comment ] || { echo "$usage" >&2; exit 2; }
+    [ $# = 3 ] && [ "$2" = --comment ] && [ -n "$3" ] || { echo "$usage" >&2; exit 2; }
     close+=(--comment "$3")
 fi
+scripts=$(cd "$(dirname "$0")" && pwd)
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
 
 if ! git fetch -q origin main; then
     echo "NOT CLOSED #$ticket: could not fetch origin/main to read its files"
     exit 1
 fi
-if ! cited=$("$(dirname "$0")/cited-tickets.sh" --at origin/main "$ticket"); then
+if ! cited=$("$scripts/cited-tickets.sh" --at origin/main "$ticket"); then
     echo "NOT CLOSED #$ticket: could not read origin/main's files"
     exit 1
 fi
