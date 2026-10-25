@@ -14,8 +14,9 @@
 #   scripts/check.sh colours    only that last check: no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh hooks      the Claude Code worktree hook's, merge-on-green.sh's, the git pre-push hook's, the
 #                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the docs ticket
-#                               checks', the plugin config's, the README's needed keys' and the plugkit pin check's
-#                               tests, against fakes and scratch repos (not run by git hooks, which run docs)
+#                               checks', the plugin config's, the README's needed keys', the plugkit pin check's and
+#                               the install stage's tests, against fakes and scratch repos (not run by git hooks,
+#                               which run docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
 #   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
@@ -48,6 +49,10 @@
 #                               <prefix>REQUIRE_ASAN=1 (for a CI runner whose ASan works) it fails there instead
 #   scripts/check.sh validate   pluginval (VST3, AU) at every sample rate the plugin supports (SAMPLE_RATES), auval,
 #                               Sidechain routing (VST3, AU), clap-validator, AAX and Standalone built
+#   scripts/check.sh install    build the VST3 and AU (Release, Universal) in BUILD_DIR-install, copy them into
+#                               ~/Library/Audio/Plug-Ins over any older copy, run auval (AU_ID) and print the installed
+#                               paths, the commit and the rm -rf line that uninstalls them, which validate needs first
+#                               (macOS only; not in CI or the default run)
 #
 # BUILD_DIR (default build) and FETCHCONTENT_BASE_DIR (default .deps, or the main checkout's .deps in a linked
 # worktree) can be overridden; CMake's
@@ -308,6 +313,8 @@ hooks() {
     "$PLUGKIT_DIR/scripts/needed-by.test.sh"
     step "plugkit pin"
     "$PLUGKIT_DIR/scripts/plugkit-pin.test.sh"
+    step "Install stage"
+    "$PLUGKIT_DIR/scripts/install.test.sh"
 }
 
 # Every colour in the editor comes from the UI kit's tokens (TOKENS_DIR's Tokens.h): a colour written as a
@@ -915,6 +922,45 @@ validate_au() (
     "$ROUTING_CHECK" AU
 )
 
+# A host test's install: the VST3 and the AU, built Universal (Release, as configure builds) in BUILD_DIR-install, a
+# folder of their own, and copied into ~/Library/Audio/Plug-Ins over any older copy; then auval on the installed AU.
+# validate refuses to run while the AU is installed, so the line that uninstalls both is printed last.
+install_plugin() {
+    if [ "$os" != macos ]; then
+        echo "install puts the plugin into ~/Library/Audio/Plug-Ins and runs auval: macOS only; skipped"
+        return
+    fi
+    need PRODUCT_NAME PLUGIN_DIR AU_ID VAR_PREFIX
+    local build=$BUILD_DIR-install plugins=$HOME/Library/Audio/Plug-Ins artefacts vst3 component commit
+    step "Build the VST3 and AU (Release, Universal) in $build"
+    configure . "$build" "-D${VAR_PREFIX}BUILD_TESTS=OFF"
+    cmake --build "$build" --config Release --parallel --target "${PLUGIN_NAME}_VST3" "${PLUGIN_NAME}_AU"
+    artefacts=$build/$PLUGIN_DIR/${PLUGIN_NAME}_artefacts/Release
+    vst3=$plugins/VST3/$PRODUCT_NAME.vst3
+    component=$plugins/Components/$PRODUCT_NAME.component
+
+    step "Install into $plugins"
+    mkdir -p "$plugins/VST3" "$plugins/Components"
+    rm -rf "$vst3" "$component"
+    cp -R "$artefacts/VST3/$PRODUCT_NAME.vst3" "$vst3"
+    cp -R "$artefacts/AU/$PRODUCT_NAME.component" "$component"
+
+    step "auval $AU_ID"
+    # The registrar caches the components it has seen: restarted, it finds the new copy.
+    killall -9 AudioComponentRegistrar 2> /dev/null || true
+    # shellcheck disable=SC2086 # AU_ID is the AU's type, subtype and manufacturer, one word each
+    if ! auval -v $AU_ID; then
+        echo "auval failed on the installed $component ($AU_ID); it stays installed" >&2
+        return 1
+    fi
+
+    commit=$(git describe --always --dirty 2> /dev/null || echo "no commit")
+    step "Installed $PRODUCT_NAME at $commit"
+    printf '%s\n%s\n' "$vst3" "$component"
+    echo "validate refuses to run while the AU is installed. To uninstall both:"
+    printf '  rm -rf "%s" "%s"\n' "$vst3" "$component"
+}
+
 validate() {
     need PRODUCT_NAME PLUGIN_DIR TESTS_DIR SAMPLE_RATES
     [ "$os" != macos ] || need AU_ID
@@ -951,10 +997,11 @@ case "${1:-all}" in
     tsan) tsan ;;
     asan) asan ;;
     validate) validate ;;
+    install) install_plugin ;;
     docs) docs; colours ;;
     colours) colours ;;
     hooks) hooks ;;
     # A busy machine skips the CPU budget and the paint time (exit 3) but not the stages after them.
     all) docs; colours; hooks; build; run_tests; cpu || [ $? -eq 3 ]; paint || [ $? -eq 3 ]; tsan; validate ;;
-    *) sed -n '2,50p' "$0" >&2; exit 2 ;;
+    *) sed -n '2,55p' "$0" >&2; exit 2 ;;
 esac
