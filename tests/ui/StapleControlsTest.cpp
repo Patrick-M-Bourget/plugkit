@@ -513,6 +513,48 @@ TEST_CASE ("A Popover closes on an outside click and on Esc, returns focus to it
     CHECK (elsewhere.hasKeyboardFocus (false));
 }
 
+TEST_CASE ("A Popover stays open while an item is picked from a menu opened inside it, and closes on a click in another window")
+{
+    Kit kit;
+    juce::TextButton opener ("Saturation");
+    kit.add (opener, { 20, 20, 80, 24 });
+    staple::Popover popover;
+    juce::ComboBox position;
+    position.addItem ("Pre", 1);
+    position.addItem ("Post", 2);
+    position.setSelectedId (1, juce::dontSendNotification);
+    popover.addAndMakeVisible (position);
+    popover.setCardSize (160, 80);
+    position.setBounds (popover.getCardBounds().reduced (8).withHeight (24));
+    popover.open (opener);
+    REQUIRE (popover.isOpen());
+
+    // The menu is a window of its own: the press on its item reaches the popover as a global mouse listener.
+    position.showPopup();
+    juce::Component* menu = nullptr;
+    REQUIRE (harness::settleUntil ([&] { return (menu = harness::openMenu()) != nullptr; }));
+    CHECK (menu->getTopLevelComponent() != kit.window.getTopLevelComponent());
+    juce::Component* post = nullptr;
+    for (auto* item : menu->getChildren())
+        if (auto* handler = item->getAccessibilityHandler(); handler != nullptr && handler->getTitle() == "Post")
+            post = item;
+    REQUIRE (post != nullptr);
+    popover.mouseDown (harness::mouseEvent (*post, centreOf (*post), juce::ModifierKeys::leftButtonModifier, centreOf (*post)));
+    CHECK (popover.isOpen());
+    REQUIRE (post->getAccessibilityHandler()->getActions().invoke (juce::AccessibilityActionType::press));
+    harness::deliverModalResults();
+    CHECK (position.getSelectedId() == 2);
+    CHECK (popover.isOpen());
+
+    // A window it doesn't own is outside it.
+    juce::Component other;
+    other.setBounds (300, 300, 100, 60);
+    other.addToDesktop (0);
+    other.setVisible (true);
+    popover.mouseDown (harness::mouseEvent (other, centreOf (other), juce::ModifierKeys::leftButtonModifier, centreOf (other)));
+    CHECK_FALSE (popover.isOpen());
+}
+
 TEST_CASE ("A Popover opens on its preferred side where there is room, else on the other, 10 px above its opener or 6 px below")
 {
     Kit kit; // 400 x 300
