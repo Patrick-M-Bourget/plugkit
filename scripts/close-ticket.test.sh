@@ -4,6 +4,7 @@
 # which origin/main doesn't; a commit pushed to origin after the clone cites #56, which only a fetch sees.
 # The fake gh logs each call to gh.log, one argument per line, and exits with gh.exit's code (0 when it's missing).
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# New in plugkit, for eq1 to take; listed in eq1#231.
 set -uo pipefail
 script=$(cd "$(dirname "$0")" && pwd)/close-ticket.sh
 tmp=$(mktemp -d)
@@ -80,7 +81,15 @@ for args in "" "12x" "12 --comment" "12 --bogus x"; do
     # shellcheck disable=SC2086 # one argument per word
     PATH="$tmp/bin:$PATH" "$script" $args > /dev/null 2>&1 && fail "bad arguments ($args) should fail"
 done
+out=$(PATH="$tmp/bin:$PATH" "$script" 77 --comment "" 2>&1) && fail "an empty comment should fail"
+grep -q "^usage: " <<< "$out" || fail "an empty comment doesn't print the usage: $out"
 [ -e "$tmp/gh.log" ] && fail "bad arguments called gh"
+
+# shellcheck disable=SC2059
+want=$'engine/a.cpp:1\nengine/a.cpp:2\n'"$(printf "$refusal" 12)"
+out=$(cd engine && PATH="$tmp/bin:$PATH" "$script" 12 2>&1) && fail "run from a subdirectory, a cited ticket was closed"
+[ "$out" = "$want" ] || fail "run from a subdirectory, it doesn't read the whole repository: $out"
+rm -f "$tmp/gh.log"
 
 git remote set-url origin "$tmp/missing.git"
 out=$(PATH="$tmp/bin:$PATH" "$script" 77 2>&1) && fail "an unreachable origin should fail, not close the ticket"

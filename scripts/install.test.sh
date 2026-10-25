@@ -4,6 +4,7 @@
 # that uninstalls them. Runs scripts/check.sh from a scratch plugin repository, with fakes of cmake, auval and
 # killall, and HOME in the scratch folder, so nothing is built and the real ~/Library is untouched.
 # Run: scripts/check.sh hooks (by hand, or in a full check; never from a git hook).
+# New in plugkit, for eq1 to take; listed in eq1#231.
 set -uo pipefail
 unset $(git rev-parse --local-env-vars)
 unset GITHUB_ACTIONS FETCHCONTENT_BASE_DIR BUILD_DIR
@@ -78,17 +79,21 @@ done
 grep -qx "auval -v aufx Dm01 Demo" "$CALLS" || fail "install doesn't run auval on AU_ID"
 [ "$(grep -n -m1 '^killall .*AudioComponentRegistrar' "$CALLS" | cut -d: -f1)" = "$(($(grep -n -m1 '^auval' "$CALLS" | cut -d: -f1) - 1))" ] ||
     fail "install doesn't restart AudioComponentRegistrar just before auval"
-grep -qF "$plugins/VST3/Demo.vst3" <<< "$out" && grep -qF "$plugins/Components/Demo.component" <<< "$out" ||
-    fail "install doesn't print the installed paths"
 grep -qF "$commit" <<< "$out" || fail "install doesn't print the commit it built ($commit)"
-uninstall=$(sed -n 's/^ *\(rm -rf .*\)$/\1/p' <<< "$out")
-if [ -z "$uninstall" ]; then
-    fail "install prints no rm -rf line"
-else
-    (eval "$uninstall")
-    [ ! -e "$plugins/VST3/Demo.vst3" ] && [ ! -e "$plugins/Components/Demo.component" ] ||
-        fail "the printed line ($uninstall) doesn't uninstall both bundles"
-fi
+# uninstalls <when>: the run printed the installed paths and an rm -rf line that uninstalls both bundles.
+uninstalls() {
+    grep -qF "$plugins/VST3/Demo.vst3" <<< "$out" && grep -qF "$plugins/Components/Demo.component" <<< "$out" ||
+        fail "install doesn't print the installed paths $1"
+    uninstall=$(sed -n 's/^ *\(rm -rf .*\)$/\1/p' <<< "$out")
+    if [ -z "$uninstall" ]; then
+        fail "install prints no rm -rf line $1"
+    else
+        (eval "$uninstall")
+        [ ! -e "$plugins/VST3/Demo.vst3" ] && [ ! -e "$plugins/Components/Demo.component" ] ||
+            fail "the printed line ($uninstall) doesn't uninstall both bundles $1"
+    fi
+}
+uninstalls "when auval passes"
 
 run BUILD_DIR="$tmp/elsewhere"
 grep -q "^cmake -S \. -B $tmp/elsewhere-install " "$CALLS" || fail "install doesn't build in BUILD_DIR-install"
@@ -96,6 +101,7 @@ grep -q "^cmake -S \. -B $tmp/elsewhere-install " "$CALLS" || fail "install does
 run AUVAL_EXIT=1
 [ "$status" != 0 ] || fail "install passes when auval fails"
 grep -qF "auval" <<< "${out%%-- calls:*}" || fail "an auval failure isn't named"
+uninstalls "when auval fails"
 
 printf '%s\n' PLUGIN_NAME=demo PRODUCT_NAME=Demo VAR_PREFIX=DEMO_ PLUGIN_DIR=plugin > "$repo/plugkit.conf"
 run
