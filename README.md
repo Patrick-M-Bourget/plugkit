@@ -179,13 +179,13 @@ FetchContent_MakeAvailable(plugkit)
 |---|---|---|---|
 | `PLUGKIT_TAG` | The plugkit tag (or full commit hash) the plugin pins, which its CMake fetches and its CI clones. Optional: plugkit itself leaves it out | `v0.11.0` | (optional: in a linked worktree, every stage that runs CMake checks the shared `.deps/plugkit-src` is at it) |
 | `PLUGIN_NAME` | CMake target prefix: `<name>_engine_tests`, `<name>_plugin_tests`, `<name>_cpu_budget`, `<name>_render`, `<name>_sidechain_routing_check`, the plugin target `<name>` (artefacts in `<PLUGIN_DIR>/<name>_artefacts`), the Engine target `<name>_engine`; also the C++ namespace `size` attributes code to | `eq1` | every stage |
-| `PRODUCT_NAME` | Bundle and binary name: `<product>.vst3`, `.component`, `.clap`, `.aaxplugin`, `.app`, `.exe` | `eq1` | `validate`, `size` |
-| `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build`, `focus`, `screens`, `cpu`, `null`, `size`, `tsan`, `asan`, the pre-push hook |
+| `PRODUCT_NAME` | Bundle and binary name: `<product>.vst3`, `.component`, `.clap`, `.aaxplugin`, `.app`, `.exe` | `eq1` | `validate`, `size`, `install` |
+| `VAR_PREFIX` | Prefix of the CMake options the harness sets (`<prefix>LTO`, `<prefix>STRIP`, `<prefix>BUILD_PLUGIN`, `<prefix>BUILD_TESTS`) and the environment variables it reads (`<prefix>REQUIRE_ASAN`, `<prefix>FIXES_RED_CI`) or sets (`<prefix>SCREENS`); `docs` refuses a test reading a `<prefix>` variable outside the editor harness | `EQ1_` | `docs`, `build`, `focus`, `screens`, `cpu`, `null`, `size`, `tsan`, `asan`, `install`, the pre-push hook |
 | `SOURCE_DIRS` | Directories, space-separated, where code may not cite a closed ticket or one the branch will close (`scripts/cited-tickets.sh`, also used by `merge-on-green.sh`; "Ticket citations") | `"engine plugin tools tests"` | `docs` |
 | `TESTS_DIR` | The tests' source directory, and their build folder under `BUILD_DIR`; one directory | `tests` | `docs`, `screens`, `cpu`, `null`, `paint`, `size`, `validate` |
 | `TEST_STEP` | The `test` stage's heading: the name of the CI step that runs it. Optional: it defaults to eq1's | `"Engine and Plugin Shell tests"` | (optional: heads `test`) |
 | `TEST_TARGETS` | The test executables' CMake targets, space-separated, that `focus`, `asan`, `screens`, `paint` and `size` build. Optional: it defaults to `<name>_engine_tests <name>_plugin_tests` | `"eq1_engine_tests eq1_plugin_tests"` | (optional: built by `focus`, `asan`, `screens`, `paint`, `size`) |
-| `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size` (and `docs`/`colours` when set) |
+| `PLUGIN_DIR` | The Plugin Shell's source directory and its build folder; `colours` reads it. A library with no Plugin Shell (plugkit itself) leaves it out, and `docs` skips `colours`, saying so | `plugin` | `validate`, `size`, `install` (and `docs`/`colours` when set) |
 | `ENGINE_DIR` | The Engine's build folder, for `size`'s code by library | `engine` | `size` |
 | `EDITOR_HARNESS` | The one test file allowed to run timers, read `<prefix>` variables and open a Graphics on an image. Optional: leave it out when the harness comes from plugkit-ui | `tests/plugin/EditorHarness.h` | (optional: read by `docs`) |
 | `TOKENS_DIR` | The one place in `PLUGIN_DIR` allowed literal colours. Optional: leave it out when the tokens come from plugkit-ui | `plugin/staple/` | (optional: read by `colours`) |
@@ -193,7 +193,7 @@ FetchContent_MakeAvailable(plugkit)
 | `LAB_SCRIPT` | The lab file holding `<NAME>_RANGE = (lo, hi)` lines | `tools/filter-lab/filterlab.py` | `docs`, when `LAB_RANGES` is set |
 | `LAB_SETTINGS` | The Engine header holding `inline constexpr ParameterRange <name> { lo, hi };` lines | `engine/include/eq1/Settings.h` | `docs`, when `LAB_RANGES` is set |
 | `SAMPLE_RATES` | Every sample rate the plugin supports, comma-separated, for pluginval | `44100,48000,88200,96000,176400,192000` | `validate` |
-| `AU_ID` | The AU's type, subtype and manufacturer codes, for auval | `"aufx Eq01 Pmbg"` | `validate` (macOS) |
+| `AU_ID` | The AU's type, subtype and manufacturer codes, for auval | `"aufx Eq01 Pmbg"` | `validate`, `install` (macOS) |
 | `BUILD_INPUTS` | A bash array of what the build reads, so the hooks can check the tree they build is the one being committed or pushed | `(engine plugin tests cmake presets assets '*CMakeLists.txt')` | the git hooks |
 
 eq1's `plugkit.conf` would read:
@@ -289,7 +289,7 @@ The plugin's workflow mirrors plugkit's own: the macOS Universal and Windows x64
         run: '"$PLUGKIT/scripts/check.sh" validate'
 ```
 
-The other stages run by hand from the plugin's root: `null <ref>`, `cpu <ref>`, `paint`, `size`, `asan`, `focus <regex>`, `screens <dir>`. `hooks` tests plugkit's own scripts. A plugin can run it, but plugkit's CI already does.
+The other stages run by hand from the plugin's root: `null <ref>`, `cpu <ref>`, `paint`, `size`, `asan`, `focus <regex>`, `screens <dir>`, and `install` (macOS), which builds the VST3 and AU in `BUILD_DIR-install`, installs them into `~/Library/Audio/Plug-Ins` for a host test over any older copy, runs auval, and prints the `rm -rf` line that uninstalls them: `validate` refuses to run while the AU is installed. `hooks` tests plugkit's own scripts. A plugin can run it, but plugkit's CI already does.
 
 ### Hooks
 
