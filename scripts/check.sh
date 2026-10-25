@@ -14,9 +14,9 @@
 #   scripts/check.sh colours    only that last check: no colour is hard-coded in PLUGIN_DIR outside TOKENS_DIR
 #   scripts/check.sh hooks      the Claude Code worktree hook's, merge-on-green.sh's, the git pre-push hook's, the
 #                               colours check's, the CPU A/B verdicts', the ticket-citation rule's, the docs ticket
-#                               checks', the plugin config's, the README's needed keys', the plugkit pin check's and
-#                               the install stage's tests, against fakes and scratch repos (not run by git hooks,
-#                               which run docs)
+#                               checks', close-ticket.sh's, the plugin config's, the README's needed keys', the plugkit
+#                               pin check's and the install stage's tests, against fakes and scratch repos (not run by
+#                               git hooks, which run docs)
 #   scripts/check.sh build      configure and build every format (macOS Universal / Windows x64),
 #                               without link-time optimisation (<prefix>LTO=OFF; shipping builds keep its default, ON)
 #   scripts/check.sh test       the tests (headed TEST_STEP, by default "Engine and Plugin Shell tests")
@@ -307,6 +307,8 @@ hooks() {
     "$PLUGKIT_DIR/scripts/cited-tickets.test.sh"
     step "Closed and closing tickets"
     "$PLUGKIT_DIR/scripts/closing-tickets.test.sh"
+    step "Close a ticket"
+    "$PLUGKIT_DIR/scripts/close-ticket.test.sh"
     step "Plugin config"
     "$PLUGKIT_DIR/scripts/plugin-config.test.sh"
     step "Needed keys"
