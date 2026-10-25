@@ -13,7 +13,8 @@ namespace
 namespace colour = staple::tokens::colour;
 } // namespace
 
-FooterReadout::FooterReadout (const juce::String& title, const juce::String& tooltip) : staple::TextChip ({}, Look::plain)
+FooterReadout::FooterReadout (const juce::String& title, const juce::String& l, const juce::String& tooltip)
+    : staple::TextChip ({}, Look::plain), label (l)
 {
     setName (title);
     setTitle (title);

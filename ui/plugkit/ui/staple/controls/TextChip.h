@@ -59,6 +59,10 @@ public:
 protected:
     std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
     juce::Font textFont() const;
+    // The width it needs to show this text, with its padding and chevron.
+    int idealWidthFor (const juce::String& text) const;
+    // The text it paints: its button text, unless a chip shows something shorter in its place (a footer readout's label).
+    virtual juce::String shownText() const { return getButtonText(); }
 
 private:
 

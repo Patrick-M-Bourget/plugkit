@@ -17,7 +17,7 @@ juce::String outputReadoutText (double db, double silentDb)
 }
 
 OutputReadout::OutputReadout()
-    : FooterReadout ("Output", "Output: Output Gain, with Auto Gain's estimate while Auto Gain is on. Click for the output controls")
+    : FooterReadout ("Output", "OUT", "Output: Output Gain, with Auto Gain's estimate while Auto Gain is on. Click for the output controls")
 {
     setButtonText (outputReadoutText (0.0));
 }

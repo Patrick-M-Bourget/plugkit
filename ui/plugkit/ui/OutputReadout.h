@@ -17,9 +17,9 @@ namespace plugkit::ui
 // silent bottom (comp1's) leaves silentDb out.
 juce::String outputReadoutText (double db, double silentDb = -std::numeric_limits<double>::infinity());
 
-// The footer's Output readout: a FooterReadout titled "Output" showing Output Gain, plus Auto Gain's estimate while
-// Auto Gain is on, as text the plugin sets (outputReadoutText) on its editor's tick. Its popover is the plugin's output
-// popover. It is not applied while Global Bypass is on.
+// The footer's Output readout: a FooterReadout titled "Output", shrinking to "OUT", showing Output Gain, plus Auto
+// Gain's estimate while Auto Gain is on, as text the plugin sets (outputReadoutText) on its editor's tick. Its popover is
+// the plugin's output popover. It is not applied while Global Bypass is on.
 class OutputReadout final : public FooterReadout
 {
 public:
