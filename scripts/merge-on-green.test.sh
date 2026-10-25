@@ -9,7 +9,8 @@
 # head's files are a scratch repo's, whose commits are $a (citing no ticket) and $c (citing #12 in engine/a.cpp),
 # read through the fake git's grep (fetches are logged to fetch.log, and fail if $FAKE/no-fetch).
 # Its base is main; the heads listed in behind (one SHA per line) are behind it, as the compare API's behind_by
-# says, and gh pr update-branch is logged to update.log (and fails if $FAKE/no-update).
+# says (when $FAKE/behind_by exists, the compare call prints that file as it is instead), and gh pr update-branch
+# is logged to update.log (and fails if $FAKE/no-update).
 # gh pr merge is logged to merge.log, and refused when --match-head-commit isn't the PR's head. Branch deletions,
 # through gh api and a fake git (local branch "topic" exists unless $FAKE/no-local, and is checked out in a
 # worktree if $FAKE/checked-out), are logged to deleted.log. It runs in the scratch repo, as at a plugin's root.
@@ -45,6 +46,7 @@ case "$1 $2 $fields" in
     "pr view headRefName") echo topic ;;
     "pr view baseRefName") jq -n '{baseRefName: "main"}' | jq -r "$query" ;;
     "api repos/{owner}/{repo}/compare/main..."*)
+        [ -e "$FAKE/behind_by" ] && { cat "$FAKE/behind_by"; exit 0; }
         behind=0
         grep -qx "${2##*...}" "$FAKE/behind" 2> /dev/null && behind=3
         jq -n --argjson b "$behind" '{behind_by: $b}' | jq -r "$query"
@@ -263,6 +265,17 @@ pr "$green" "$a"
 echo "$a" > "$FAKE/behind"
 touch "$FAKE/no-update"
 expect 1 "could not update it with main" unmerged "a PR behind main that can't be updated isn't merged"
+
+for unread in null ""; do
+    pr "$green" "$a"
+    echo "$unread" > "$FAKE/behind_by"
+    expect 1 "^NOT MERGED #7: couldn't read how far behind main ${a:0:7} is" unmerged \
+        "a PR whose behind_by reads '$unread' isn't merged"
+    if [ -e "$FAKE/update.log" ]; then
+        echo "FAIL: a PR whose behind_by reads '$unread' was updated" >&2
+        failures=$((failures + 1))
+    fi
+done
 
 pr "$green" "$a"
 echo "$a" > "$FAKE/behind"

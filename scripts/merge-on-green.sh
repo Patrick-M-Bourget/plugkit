@@ -61,6 +61,10 @@ if ! behind=$(gh api "repos/{owner}/{repo}/compare/$base...$head" --jq .behind_b
     echo "NOT MERGED #$pr: could not compare ${head:0:7} with $base"
     exit 1
 fi
+if ! [[ $behind =~ ^[0-9]+$ ]]; then
+    echo "NOT MERGED #$pr: couldn't read how far behind $base ${head:0:7} is (behind_by: '$behind'); run again"
+    exit 1
+fi
 if [ "$behind" != 0 ]; then
     if ! gh pr update-branch "$pr"; then
         echo "NOT MERGED #$pr: could not update it with $base; rebase it"
