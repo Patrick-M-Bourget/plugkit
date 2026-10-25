@@ -58,9 +58,11 @@ void TextChip::setInk (std::optional<juce::Colour> colour)
 
 juce::Font TextChip::textFont() const { return font (fontSize, weight); }
 
-int TextChip::getIdealWidth() const
+int TextChip::getIdealWidth() const { return idealWidthFor (getButtonText()); }
+
+int TextChip::idealWidthFor (const juce::String& text) const
 {
-    float width = juce::GlyphArrangement::getStringWidth (textFont(), getButtonText()) + paddingLeft + paddingRight;
+    float width = juce::GlyphArrangement::getStringWidth (textFont(), text) + paddingLeft + paddingRight;
     if (chevron)
         width += chevron->gap + chevron->size;
     return static_cast<int> (std::ceil (width));
@@ -92,7 +94,7 @@ void TextChip::paintButton (juce::Graphics& g, bool highlighted, bool down)
     }
     g.setFont (textFont());
     g.setColour (ink);
-    g.drawText (getButtonText(), area,
+    g.drawText (shownText(), area,
                 justification.value_or (chevron ? juce::Justification::centredLeft : juce::Justification::centred), true);
 }
 

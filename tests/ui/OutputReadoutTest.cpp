@@ -1,10 +1,11 @@
 // Copied from eq1's tests/plugin/FooterTest.cpp (eq1 at dbb1127): its Output readout and output popover cases, against
 // plugkit's test processor and its editor (TestProcessor.h), the readout and a popover on the frame put in its footer
-// as a plugin's footer holds them; listed in eq1#231.
+// as a plugin's footer holds them; listed in eq1#231. The footer readout cases at the end, against a Saturation
+// readout as comp1's footer holds one, are new in plugkit.
 
 #include "TestProcessor.h"
 #include "plugkit/test/EditorHarness.h"
-#include "plugkit/ui/OutputPopoverFrame.h"
+#include "plugkit/ui/FooterPopoverFrame.h"
 #include "plugkit/ui/OutputReadout.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -21,7 +22,7 @@ const juce::KeyPress escape (juce::KeyPress::escapeKey);
 // An output popover on the frame, standing in for a plugin's: eq1's card width, and one toggle, eq1's Output Meter's,
 // which shows what the processor holds (meterShown, standing in for eq1's isOutputMeterShown) each time the frame has
 // it follow the processor.
-struct TestPopover final : plugkit::ui::OutputPopoverFrame
+struct TestPopover final : plugkit::ui::FooterPopoverFrame
 {
     TestPopover()
     {
@@ -79,14 +80,28 @@ struct Footer : harness::OpenEditor<plugkit::test::TestProcessor>
     }
 };
 
-// The readout as it paints now, hovered or pressed or neither.
-juce::Image paintOf (plugkit::ui::OutputReadout& readout, bool highlighted = false, bool down = false)
+// A readout as it paints now, hovered or pressed or neither.
+juce::Image paintOf (plugkit::ui::FooterReadout& readout, bool highlighted = false, bool down = false)
 {
     return harness::paintImage (readout.getWidth(), readout.getHeight(), [&] (juce::Graphics& g) { readout.paintButton (g, highlighted, down); });
 }
 
 // What is behind its text: a pixel 3 px in from its left edge, left of the text's padding.
 juce::Colour behindText (const juce::Image& image) { return image.getPixelAt (3, image.getHeight() / 2); }
+
+// The columns its text inks, from the first to the last.
+juce::Range<int> inkedColumns (const juce::Image& image)
+{
+    juce::Range<int> inked;
+    for (int x = 0; x < image.getWidth(); ++x)
+        for (int y = 0; y < image.getHeight(); ++y)
+            if (image.getPixelAt (x, y).getAlpha() > 0x40)
+            {
+                inked = inked.isEmpty() ? juce::Range<int> (x, x + 1) : inked.getUnionWith (juce::Range<int> (x, x + 1));
+                break;
+            }
+    return inked;
+}
 
 // Its text's strongest ink: the highest alpha it paints.
 int inkAlpha (const juce::Image& image)
@@ -253,4 +268,125 @@ TEST_CASE ("An output toggle toggles on a click, filled with fill2 while on, its
         CHECK (inkAlpha (on) > offInk);
         CHECK (offInk > 0);
     }
+}
+
+namespace
+{
+
+// A Saturation readout, as comp1's footer holds one: "SAT" and its Drive.
+struct SaturationReadout final : plugkit::ui::FooterReadout
+{
+    SaturationReadout() : plugkit::ui::FooterReadout ("Saturation", "SAT", "Saturation: Drive. Click for the saturation controls")
+    {
+        setButtonText ("SAT +6.0 dB");
+    }
+};
+
+} // namespace
+
+TEST_CASE ("A footer readout given its full width shows its text, and given less shows only its label, read in full either way")
+{
+    // In a footer, as a screen reader finds it.
+    Footer host;
+    SaturationReadout full, shrunk, label;
+    label.setButtonText ("SAT");
+    for (auto* readout : { &full, &shrunk, &label })
+        host.footer.addAndMakeVisible (*readout);
+    const int fullWidth = full.getIdealWidth();
+    // Its label and padding: the least a footer gives it.
+    CHECK (full.getShrunkWidth() == label.getIdealWidth());
+    CHECK (full.getShrunkWidth() < fullWidth);
+    full.setBounds (0, 0, fullWidth, 28);
+    shrunk.setBounds (0, 0, fullWidth - 1, 28);
+    label.setBounds (shrunk.getBounds());
+
+    CHECK_FALSE (full.isShrunk());
+    CHECK (shrunk.isShrunk());
+    // Shrunk, it paints as a readout reading "SAT" does; at its full width, over twice as wide.
+    const auto shrunkInk = inkedColumns (paintOf (shrunk));
+    CHECK (shrunkInk == inkedColumns (paintOf (label)));
+    CHECK (inkedColumns (paintOf (full)).getLength() > shrunkInk.getLength() * 2);
+    // Its width given back, its text again.
+    shrunk.setBounds (full.getBounds());
+    CHECK_FALSE (shrunk.isShrunk());
+    CHECK (inkedColumns (paintOf (shrunk)) == inkedColumns (paintOf (full)));
+
+    // Narrower than its label, it still shows, clipped: never hidden.
+    shrunk.setBounds (0, 0, full.getShrunkWidth() / 2, 28);
+    CHECK (shrunk.isShrunk());
+    CHECK (shrunk.isVisible());
+    CHECK_FALSE (inkedColumns (paintOf (shrunk)).isEmpty());
+
+    // A screen reader reads its title and its whole text, shrunk or not.
+    for (auto* readout : { &full, &shrunk })
+    {
+        CHECK (readout->getTitle() == "Saturation");
+        CHECK (readout->getButtonText() == "SAT +6.0 dB");
+        auto* handler = readout->getAccessibilityHandler();
+        REQUIRE (handler != nullptr);
+        REQUIRE (handler->getValueInterface() != nullptr);
+        CHECK (handler->getValueInterface()->getCurrentValueAsString() == "SAT +6.0 dB");
+    }
+}
+
+TEST_CASE ("A footer readout draws text4 while not applied, full or shrunk")
+{
+    SaturationReadout readout;
+    for (const int width : { readout.getIdealWidth(), readout.getShrunkWidth() })
+    {
+        CAPTURE (width);
+        readout.setBounds (0, 0, width, 28);
+        readout.setNotApplied (false);
+        CHECK (inkAlpha (paintOf (readout)) > 0xC0);
+        readout.setNotApplied (true);
+        CHECK (readout.isNotApplied());
+        CHECK (inkAlpha (paintOf (readout)) < 0x60);
+    }
+}
+
+TEST_CASE ("A footer readout's popover opens above it, right-aligned to it, shrunk or not, and closes on a second click or Escape")
+{
+    Footer host;
+    SaturationReadout saturation;
+    saturation.onClick = [&] {
+        if (host.popover.isOpen())
+            host.popover.close();
+        else
+        {
+            host.popover.openFrom (saturation);
+            saturation.setOpen (host.popover.isOpen());
+        }
+    };
+    host.popover.onClose = [&] {
+        saturation.setOpen (false);
+        host.footer.addChildComponent (host.popover);
+    };
+    host.footer.addAndMakeVisible (saturation);
+    // Where the Output readout's right edge is, standing in for it.
+    const int right = host.output.getRight();
+    for (const int width : { saturation.getIdealWidth(), saturation.getShrunkWidth() })
+    {
+        CAPTURE (width);
+        saturation.setBounds (host.output.getBounds().withX (right - width).withWidth (width));
+        saturation.onClick();
+        REQUIRE (host.popover.isOpen());
+        CHECK (saturation.isOpen());
+        REQUIRE (host.settleUntil ([&] { return ! host.popover.isTransformed(); })); // popped in
+        const auto card = host.editor->getLocalArea (&host.popover, host.popover.getCardBounds());
+        const auto readout = host.inEditor (saturation);
+        CHECK (card.getBottom() < readout.getY());
+        CHECK (card.getRight() == readout.getRight());
+        saturation.onClick();
+        CHECK_FALSE (host.popover.isOpen());
+        CHECK_FALSE (saturation.isOpen());
+
+        saturation.onClick();
+        REQUIRE (host.popover.isOpen());
+        host.popover.meter.grabKeyboardFocus();
+        REQUIRE (host.popover.meter.hasKeyboardFocus (false));
+        CHECK (host.press (escape));
+        CHECK_FALSE (host.popover.isOpen());
+        CHECK_FALSE (saturation.isOpen());
+    }
+    host.popover.onClose = nullptr;
 }
