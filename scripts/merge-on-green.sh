@@ -15,9 +15,9 @@
 #   scripts/merge-on-green.sh <PR number> [--user-approved "<the user's words>"] --merge
 #
 # --user-approved stands for the verdict when the session that built the PR merges it on the user's
-# go-ahead: it waits for CI as usual and records the user's words in the squash commit.
-# --merge merges with a merge commit instead of a squash, with every guard above; the user's words go in the
+# go-ahead: it waits for CI as usual and records the user's words in the squash commit, or with --merge in the
 # merge commit's body.
+# --merge merges with a merge commit instead of a squash, with every guard above.
 # After a merge it deletes the PR's branch, on origin and locally. Run it at the plugin repository's root.
 #
 # Copied from eq1's scripts/merge-on-green.sh (eq1 at dbb1127); listed in eq1#231.
