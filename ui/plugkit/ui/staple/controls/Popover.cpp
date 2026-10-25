@@ -149,6 +149,16 @@ bool Popover::keyPressed (const juce::KeyPress& key, juce::Component*)
     return keyPressed (key);
 }
 
+bool Popover::isInModalInFront (const juce::Component& clicked) const
+{
+    // A modal component that holds the popover (a dialog it opens inside) is its own window, not in front.
+    for (int i = 0; i < juce::Component::getNumCurrentlyModalComponents(); ++i)
+        if (auto* modal = juce::Component::getCurrentlyModalComponent (i);
+            modal != nullptr && ! modal->isParentOf (this) && (modal == &clicked || modal->isParentOf (&clicked)))
+            return true;
+    return false;
+}
+
 void Popover::mouseDown (const juce::MouseEvent& event)
 {
     auto* clicked = event.eventComponent;
@@ -156,6 +166,8 @@ void Popover::mouseDown (const juce::MouseEvent& event)
         return;
     // Its opener toggles it itself.
     if (opener != nullptr && (clicked == opener.getComponent() || opener->isParentOf (clicked)))
+        return;
+    if (isInModalInFront (*clicked))
         return;
     close();
 }

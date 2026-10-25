@@ -15,9 +15,10 @@ namespace staple
 // r3 corners and shadow1, opened beside the component that opens it, inside that component's overlay
 // layer (Overlay.h), popping in over dur2 from 3 px lower at 98.5 % scale. Opened from the keyboard,
 // focus moves into it; opened by a click, focus stays where it was. A click anywhere outside it and its
-// opener, or Esc, closes it, and focus inside it goes back to the opener. Its contents (the children a
-// caller adds, laid out in getCardBounds()) are in the focus order only while it is open; its own
-// chrome is never a focus stop.
+// opener, or Esc, closes it, and focus inside it goes back to the opener. A click in a modal window in
+// front of it (a popup menu opened from a control inside it, which is a window of its own) isn't outside
+// it. Its contents (the children a caller adds, laid out in getCardBounds()) are in the focus order only
+// while it is open; its own chrome is never a focus stop.
 class Popover : public juce::Component, private juce::KeyListener
 {
 public:
@@ -51,6 +52,9 @@ public:
 private:
     // The pop-in's progress, 0 to 1.
     void popIn (float progress);
+    // Whether clicked is in a modal component other than one that holds the popover: a popup menu or
+    // dialog opened in front of it.
+    bool isInModalInFront (const juce::Component& clicked) const;
     // Esc from wherever focus is in the opener's window.
     bool keyPressed (const juce::KeyPress& key, juce::Component* origin) override;
     juce::Component::SafePointer<juce::Component> escapeFrom;

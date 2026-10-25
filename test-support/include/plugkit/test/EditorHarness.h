@@ -145,6 +145,14 @@ inline juce::Component* openMenu()
     return nullptr;
 }
 
+// Delivers what the modal components that have closed return (a popup menu's pick, to its callback),
+// as JUCE does from the message loop, which tests don't run.
+inline void deliverModalResults()
+{
+    // ModalComponentManager's AsyncUpdater is a private base, which only a C-style cast reaches.
+    ((juce::AsyncUpdater*) juce::ModalComponentManager::getInstance())->handleUpdateNowIfNeeded();
+}
+
 // A layout with the given main input and output, and Sidechain (disabled unless given).
 inline juce::AudioProcessor::BusesLayout layoutOf (const juce::AudioChannelSet& in,
                                                   const juce::AudioChannelSet& out,
