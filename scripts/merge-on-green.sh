@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Squash-merges a PR once CI passes and a reviewer has passed its head commit (the plugin's reviewer doc).
+# Squash-merges (or with --merge, merges) a PR once CI passes and a reviewer has passed its head commit (the
+# plugin's reviewer doc).
 # Stops, saying why, on a conflict with main, failed checks, no checks, a changes verdict or a head that moved
 # from the one CI ran on (gh pr merge --match-head-commit also refuses one that moves at the last moment).
 # It also refuses a head whose code still cites a ticket the PR closes (its closingIssuesReferences, or a
@@ -11,20 +12,34 @@
 #
 #   scripts/merge-on-green.sh <PR number>
 #   scripts/merge-on-green.sh <PR number> --user-approved "<the user's words>"
+#   scripts/merge-on-green.sh <PR number> [--user-approved "<the user's words>"] --merge
 #
 # --user-approved stands for the verdict when the session that built the PR merges it on the user's
 # go-ahead: it waits for CI as usual and records the user's words in the squash commit.
+# --merge merges with a merge commit instead of a squash, with every guard above; the user's words go in the
+# merge commit's body.
 # After a merge it deletes the PR's branch, on origin and locally. Run it at the plugin repository's root.
 #
 # Copied from eq1's scripts/merge-on-green.sh (eq1 at dbb1127); listed in eq1#231.
 set -uo pipefail
-usage='usage: scripts/merge-on-green.sh <PR number> [--user-approved "<the user'"'"'s words>"]'
+usage='usage: scripts/merge-on-green.sh <PR number> [--user-approved "<the user'"'"'s words>"] [--merge]'
 pr=${1:?$usage}
-approval=
-if [ $# -gt 1 ]; then
-    [ "$2" = --user-approved ] && [ -n "${3:-}" ] || { echo "$usage" >&2; exit 2; }
-    approval=$3
-fi
+shift
+approval= method=--squash
+while [ $# -gt 0 ]; do
+    case $1 in
+        --user-approved)
+            [ -n "${2:-}" ] || { echo "$usage" >&2; exit 2; }
+            approval=$2
+            shift 2
+            ;;
+        --merge)
+            method=--merge
+            shift
+            ;;
+        *) echo "$usage" >&2; exit 2 ;;
+    esac
+done
 
 # The head CI runs on: a push after this is judged by nothing that ran, so it stops the merge.
 read_head() { gh pr view "$pr" --json headRefOid -q .headRefOid; }
@@ -126,8 +141,8 @@ head_moved
 
 title=$(gh pr view "$pr" --json title -q .title)
 branch=$(gh pr view "$pr" --json headRefName -q .headRefName)
-# A squash merge leaves the PR's branch behind, on origin and here: delete both. A branch still checked out in
-# a worktree stays, and says so.
+# A merge leaves the PR's branch behind, on origin and here: delete both. A branch still checked out in a
+# worktree stays, and says so.
 delete_branch() {
     gh api -X DELETE "repos/{owner}/{repo}/git/refs/heads/$branch" > /dev/null 2>&1 \
         || echo "kept origin/$branch: could not delete it"
@@ -138,9 +153,20 @@ delete_branch() {
         git branch -q -D "$branch"
     fi
 }
-# GitHub refuses the merge if the head is no longer the one CI ran on.
+# GitHub refuses the merge if the head is no longer the one CI ran on. A squash is titled "<title> (#N)" and
+# its body says where it came from; a merge commit keeps GitHub's "Merge pull request #N from ..." title, with
+# the PR's title as its body. The user's go-ahead, if any, follows in the body.
 merge() {
-    if gh pr merge "$pr" --squash --match-head-commit "$head" --subject "$title (#$pr)" --body "$1"; then
+    local body
+    if [ "$method" = --squash ]; then
+        body="Squashed from #$pr"
+        set -- --subject "$title (#$pr)"
+    else
+        body=$title
+        set --
+    fi
+    [ -n "$approval" ] && body+=$'\n\n'"Approved by the user: \"$approval\""
+    if gh pr merge "$pr" "$method" --match-head-commit "$head" "$@" --body "$body"; then
         echo "MERGED #$pr: $title"
         delete_branch
     else
@@ -149,7 +175,7 @@ merge() {
     fi
 }
 if [ -n "$approval" ]; then
-    merge "Squashed from #$pr"$'\n\n'"Approved by the user: \"$approval\""
+    merge
     exit
 fi
 verdicts() { gh pr view "$pr" --json comments -q '.comments[].body'; }
@@ -162,4 +188,4 @@ until verdicts | grep -q "qa-verdict: pass sha=${head:0:7}"; do
     sleep 60
 done
 
-merge "Squashed from #$pr"
+merge

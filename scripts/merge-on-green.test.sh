@@ -268,6 +268,43 @@ pr "$green" "$a"
 echo "$a" > "$FAKE/behind"
 expect 1 "still at ${a:0:7} after updating it with main" unmerged "an update whose new head never shows isn't merged"
 
+pr "$green" "$a"
+expect 0 "^MERGED #7: Do a thing$" merged "--merge merges a green PR with a pass verdict" --merge
+if [ "$(cat "$FAKE/merge.log")" != "pr merge 7 --merge --match-head-commit $a --body Do a thing" ]; then
+    echo "FAIL: --merge didn't make a merge commit titled by GitHub: $(cat "$FAKE/merge.log")" >&2
+    failures=$((failures + 1))
+fi
+deleted $'origin topic\nlocal topic' "--merge deletes the branch on origin and locally"
+
+pr "$green" "$a"$'\n'"$b" "[]"
+echo "$a" > "$FAKE/behind"
+expect 0 "^MERGED #7" merged "--merge with the user's go-ahead merges a PR behind main at its new head" \
+    --user-approved "merge it" --merge
+merged_at "$b" "--merge on a PR behind main"
+grep -q -- "--merge --match-head-commit" "$FAKE/merge.log" && ! grep -q -- --squash "$FAKE/merge.log" || {
+    echo "FAIL: --merge after --user-approved squashed: $(cat "$FAKE/merge.log")" >&2
+    failures=$((failures + 1))
+}
+grep -q 'Approved by the user: "merge it"' "$FAKE/merge.log" || {
+    echo "FAIL: the user's words aren't in the merge commit" >&2
+    failures=$((failures + 1))
+}
+
+pr "$green" "$a" "[]"
+expect 0 "^MERGED #7" merged "--merge may come before --user-approved" --merge --user-approved "merge it"
+grep -q -- "--merge --match-head-commit $a --body Do a thing" "$FAKE/merge.log" || {
+    echo "FAIL: --merge before --user-approved didn't make a merge commit: $(cat "$FAKE/merge.log")" >&2
+    failures=$((failures + 1))
+}
+
+pr "$green" "$c" "[]"
+echo "[12]" > "$FAKE/closes"
+expect 1 "^engine/a.cpp:1: points at #12, which this PR closes$" unmerged \
+    "--merge doesn't merge a head that cites a ticket it closes" --merge --user-approved "merge it"
+
+pr "$green" "$a"
+expect 2 "^usage:" unmerged "an unknown option is refused" --rebase
+
 if [ "$failures" = 0 ]; then
     echo "merge-on-green.sh merges only the head CI passed, with every required job by name"
 else
