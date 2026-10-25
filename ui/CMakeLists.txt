@@ -43,6 +43,7 @@ target_sources(plugkit-ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorShell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/EditorTick.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/FooterPopoverFrame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/FooterReadout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/HeaderBar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardControl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/plugkit/ui/KeyboardSlider.cpp
